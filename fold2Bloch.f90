@@ -1,6 +1,6 @@
 !!!##################################################################################
 !!! fold2Bloch.f90		
-!!!TEST 
+!!! 
 !!!    Unfold the data in .vector[_1] file.  Based on
 !!!    join_vectorfiles.
 !!!
@@ -39,7 +39,12 @@ END SUBROUTINE progress
 
 MODULE Unfold
 Contains
-
+!!!#########################################################################
+!!!Line_Count
+!!!	Determines the number of K points in case.klist file by counting lines.
+!!!Input: unitklist
+!!!Output: line_count
+!!!#########################################################################
 integer FUNCTION line_count(ident)
 
  implicit none
