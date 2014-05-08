@@ -1,6 +1,6 @@
 !!!##################################################################################
 !!! fold2Bloch.f90		
-!!! 
+!!!TEST 
 !!!    Unfold the data in .vector[_1] file.  Based on
 !!!    join_vectorfiles.
 !!!
