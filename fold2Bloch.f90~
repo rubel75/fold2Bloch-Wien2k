@@ -6,7 +6,7 @@
 !!!
 !!!    Usage: fold2Bloch [-up/-dn] [-c] <case.vector[_1]> x:y:z (x,y, and z are number of folds)
 !!!
-!!! Copyright 2014 Anton Bokhanchuk, Elias Assmann
+!!! Copyright 2013 Elias Assmann, Anton Bokhanchuk
 !!!###################################################################################
 
 !!!#################################################################################
