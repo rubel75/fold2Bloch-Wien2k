@@ -1,9 +1,9 @@
-fold2Bloch
+## fold2Bloch
 ==========
 
 Unfolding of first-principle electronic band structure
 
-Contributors:
+### Contributors:
 * Anton Bokhanchuk
 * Elias Assmann
 * Oleg Rubel
