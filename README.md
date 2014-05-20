@@ -7,3 +7,5 @@ Contributors:
 * Anton Bokhanchuk
 * Elias Assmann
 * Oleg Rubel
+
+For installation and tutorials, please refer to [wiki page](https://github.com/rubel75/fold2Bloch/wiki)
