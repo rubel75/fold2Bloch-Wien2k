@@ -1,6 +1,6 @@
 ## fold2Bloch
 
-Unfolding of first-principle electronic band structure
+Unfolding of first-principle electronic band structure obtained with [WIEN2k](http://www.wien2k.at) DFT-(L)APW code
 
 ### Contributors:
 * Anton Bokhanchuk
