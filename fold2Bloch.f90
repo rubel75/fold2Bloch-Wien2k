@@ -262,7 +262,7 @@ END MODULE Unfold
 !!!##################################################################################
 !!! 					MAIN
 !!!###################################################################################
-PROGRAM Unfolder
+PROGRAM fold2Bloch
   use structmod, only: struct, struct_read
   use Unfold
 
@@ -507,4 +507,4 @@ PROGRAM Unfolder
  endif
  close(unitvector)
  close(unittargetvector)
-END PROGRAM Unfolder
+END PROGRAM fold2Bloch
