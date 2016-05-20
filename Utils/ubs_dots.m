@@ -4,14 +4,14 @@ function ubs_dots
 % modified 21 Jan 2016
 
 %% Init. parameters
-KPATH = [1/2 0 0; ...
-         0 0 0; ...
-         1/2 1/2 0]; % k-point path
+KPATH = [0 1/2 0; ...
+        0 0 0; ...
+        0 0 1/2]; % k-point path
 FOLDS = [1 2 3]; % multiplicity in the corresponding directions used when constructing the super-cell
-KLABEL = {'L'; 'G'; 'X'};
-finpt = 'your.f2b'; % input file name
-Ef = 0.372141; % Fermi energy (Ry)
-ERANGE = [Ef-0.1 Ef+0.15]; % energy range for plot (Ry)
+KLABEL = {'Y'; 'G'; 'Z'};
+finpt = '6-atom2D.f2b'; % input file name
+Ef = 0.0460363511; % Fermi energy (Ry)
+ERANGE = [Ef-1 Ef+0.4]; % energy range for plot (Ry)
 ry2ev = 13.605698066; % Ry -> eV conversion factor
 pwr = 1/1; % power for result plotting
          % 1 - linear scale, 1/2 - sqrt, etc.
@@ -28,9 +28,9 @@ clrmp = jet;    % flipud(gray)
                 % flipud(bone)
                 % flipud(jet)
                 % jet
-G = [0.038904 -0.012968 -0.012968;
-     0.000000  0.036679 -0.018340;
-     0.000000  0.000000  0.031765]; % Reciprocal latt. vect. from *.outputkgen
+G = [ 0.333333  0.000000  0.000000;
+      0.000000  0.166667  0.000000;
+      0.000000  0.000000  0.111111]; % Reciprocal latt. vect. from *.outputkgen
 
 
 %% INITIALIZATION
@@ -70,6 +70,14 @@ for ikp = 1 : size(KPATH,1)-1
     end
     dl = dl + dk;
 end
+if isempty(L)
+    msg = ['No eigenvalues are selected for the plot. ', ...
+        'The likely reason is that the energy range is ', ...
+        'too restrictive (check ERANGE), or no k-points are located ', ...
+        'on the path selected (check KPATH)'];
+    error(msg);
+end
+
 
 %% Plot results
 hFig = figure(1);
