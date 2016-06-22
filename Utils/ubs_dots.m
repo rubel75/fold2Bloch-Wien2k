@@ -43,6 +43,7 @@ G = [ 0.333333  0.000000  0.000000;
 L = [];
 ENE = [];
 WGHT = [];
+G = G'; % transpose G matrix
 for i=1 : 3
     G(i,:)=G(i,:)*FOLDS(i); % rescale reciprocal lattice vectors 
 end                         % from supercell to primitive cell
@@ -125,7 +126,6 @@ function W = coordTransform(V,G)
 % transform vector V(:,3) in G(3,3) coord. system -> W(:,3) in Cartesian coordinates
 % G vector elements are in columns!
 W = zeros(size(V));
-G = G'; % transform G
 for i = 1:length(V)
     W(i,:) = G(1,:)*V(i,1) + G(2,:)*V(i,2) + G(3,:)*V(i,3);
 end;
