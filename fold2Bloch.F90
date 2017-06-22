@@ -4,7 +4,7 @@
 !!!    Unfold the data in .vector[_1] file.  Based on
 !!!    join_vectorfiles.
 !!!
-!!!    Usage: fold2Bloch [-up/-dn] [-c] <case.vector[_1]> x:y:z (x,y, and z are number of folds)
+!!!    Usage: fold2Bloch [-c] case.vector[_1] x:y:z (x,y, and z are number of folds)
 !!!
 !!! Copyright 2013 Elias Assmann, Anton Bokhanchuk
 !!!###################################################################################
