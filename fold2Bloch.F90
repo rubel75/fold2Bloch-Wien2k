@@ -390,7 +390,7 @@ PROGRAM fold2Bloch
  endif
  
  inquire(file=vectorname, exist=dir)
- if (not(dir)) then
+ if (.not.(dir)) then
   write(*,50) trim(vectorname)//'  CASE FILE DOES NOT EXIST OR NO FILENAME ENTERED'
   50 format(47A)
   write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
@@ -435,7 +435,7 @@ PROGRAM fold2Bloch
 
  !Check if .klist and .struct files exist
  inquire(file=trim(seedname)//'.struct', exist=dir)
- if (not(dir)) then
+ if (.not.(dir)) then
   write(*,*) "     ", trim(seedname)//'.struct file does not exist'
   stop
  else
@@ -460,7 +460,7 @@ PROGRAM fold2Bloch
  35 format(a23, a70)
 
  inquire(file=trim(seedname)//'.klist', exist=dir)
- if (not(dir)) then
+ if (.not.(dir)) then
    write(*,*) trim("     WARNING: ")//trim(seedname)//'.klist could not be found. Progress can not be calculated!'
    write(*,*) "      Continuing to process file..."
  else
@@ -543,7 +543,7 @@ PROGRAM fold2Bloch
  write(*,*) "     Data was written to: ", trim(seedname)//".f2b"//trim(endout)
  write(*,*) "     Data format: KX, KY, KZ, Eigenvalue(Ry), Weight"
 
- if (not(dir)) then
+ if (.not.(dir)) then
    write(*,*) "     ", trim(seedname)//'.klist could not be found for comparison.'
  else
    if (nkcount.lt.nkpoints) then
