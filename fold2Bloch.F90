@@ -9,7 +9,7 @@
 !       fold2Bloch -c case.vector[_1] x:y:z # complex calc. (no inv. symm.)
 !       fold2Bloch case.vector[_1] x:y:z # complex calc. implied
 !       fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] ...
-!           case.normsoup[_1] case.normsodn[_1] x:y:z
+!           case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit coupling
 !
 !   Compilation:
 !       ifort -assume realloc_lhs -assume byterecl -g -traceback -check all ...
