@@ -9,7 +9,7 @@ Unfolding of first-principle electronic band structure obtained with [WIEN2k](ht
 * Oleg Rubel
 
 ### New features:
-[May 2020] Full support of spinor wave functions. See this thread https://www.mail-archive.com/wien@zeus.theochem.tuwien.ac.at/msg20053.html for more details. (Special thanks to Peter Blaha for helpful suggestions.)
+[May 2020]  Full support of spinor wave functions. See this thread https://www.mail-archive.com/wien@zeus.theochem.tuwien.ac.at/msg20053.html for more details. (Special thanks to Peter Blaha for helpful suggestions.)
 
 ### Documentation, examples, and support
 
