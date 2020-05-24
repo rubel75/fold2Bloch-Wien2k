@@ -9,7 +9,7 @@ Unfolding of first-principle electronic band structure obtained with [WIEN2k](ht
 * Oleg Rubel
 
 ### New features:
-[May 2020] Full support of spinor wave functions (see 
+[May 2020] Full support of spinor wave functions (see this thread https://www.mail-archive.com/wien@zeus.theochem.tuwien.ac.at/msg20053.html for more details)
 
 For installation and tutorials, please refer to [wiki page](https://github.com/rubel75/fold2Bloch/wiki)
 
