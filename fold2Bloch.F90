@@ -1,560 +1,503 @@
-!!!##################################################################################
-!!! fold2Bloch.f90		
-!!! 
-!!!    Unfold the data in .vector[_1] file.  Based on
-!!!    join_vectorfiles.
-!!!
-!!!    Usage: fold2Bloch [-c] case.vector[_1] x:y:z (x,y, and z are number of folds)
-!!!
-!!! Copyright 2013 Elias Assmann, Anton Bokhanchuk
-!!!###################################################################################
-
-!!!#################################################################################
-!!!Progress
-!!!	Write a progress bar to the screen indicating percentage of work complete.
-!!!Input: 	nkcount, nkpoints
-!!!Output:	none
-!!!#################################################################################
-
-SUBROUTINE progress(symbol)
- implicit none
- character, intent(inout):: symbol
- character(len=17)::bar="? processing file"
- if (symbol.eq.'\') then
-    symbol='|'
- elseif (symbol.eq.'|') then
-    symbol='/'
- elseif (symbol.eq.'/') then
-    symbol='-'
- elseif (symbol.eq.'-') then
-    symbol='\'
- endif
- write(unit=bar(1:1),fmt="(a1)") symbol
- bar(2:1) = symbol
- ! print the progress bar.
- write(unit=6,fmt="(a1,a23,$)") char(13), bar
- return 
-END SUBROUTINE progress
-
-
-MODULE Unfold
-Contains
-
-integer FUNCTION line_count(ident)
-
- implicit none
- integer, intent(in) :: ident
- character(20) temp
- integer iostat
- logical ioEndStat
-
- line_count=0
- ioEndStat=.false.
-
- do while (.not. ioEndStat )
-   read(ident,"(A20)", iostat=ioStat ) temp
-   if( temp .ne. 'END') then 
-      line_count = line_count + 1
-   else 
-      ioEndStat = .TRUE. 
-   endif
- end do
- rewind(ident)
-END FUNCTION line_count        
-
-!!!#################################################################################
-!!! NewK
-!!!	Finds new K Values for each group, depending on the number of folds in 
-!!!	x, y, and z directions.
-!!!Input: 	KX, KY, KZ, FoldX, FoldY, FoldZ
-!!!Output:	NKVal(array)
-!!!#################################################################################
-
-SUBROUTINE NewK (X, Y, Z, FX, FY, FZ, NKVal)
- implicit none
- real, allocatable :: NKVal (:,:)
- real :: field_x, field_y, field_z
- DOUBLE PRECISION :: TX, TY, TZ
- double precision, intent(in) :: X, Y, Z
- integer, intent(in) :: FX, FY, FZ
- integer :: loop, i, j, k, size 
- size=FX*FY*FZ
- allocate (NKVal(3,size))
-
- !Brillouin zone range
- field_x=0.5*FX
- field_y=0.5*FY
- field_z=0.5*FZ
- loop=1 
-
- do i=0, (FX-1)
-    if ((X+i).gt.(field_x)) then
-       TX=X-(field_x*2)+i
-    else 
-	TX=X+i
-    endif
-    do j=0, (FY-1)
-       if ((Y+j).gt.(field_y)) then
-          TY=Y-(field_y*2)+j
-       else 
-	   TY=Y+j
-	endif
-       do k=0,(FZ-1)
-          if ((Z+k).gt.(field_z)) then
-             TZ=Z-(field_z*2)+k
-          else 
-             TZ=Z+k
-	   endif
-	   NKVal(1,loop)=TX
-           NKVal(2,loop)=TY
-           NKVal(3,loop)=TZ
-           loop=loop+1
-       enddo
-    enddo
- enddo   
-END SUBROUTINE NewK
-
-!!!#################################################################################
-!!! Sort
-!!!     Sorts energy coefficients into appropriate groups according to relative
-!!!     location to Gamma point. Then calculates the weight of each group.
-!!!Input:       FoldX, FoldY, FoldZ, Vectors, Coef, NV, Orb
-!!!Output:      Weights(array)
-!!!#################################################################################
-SUBROUTINE Sort(FX, FY, FZ, Vector, Coef, NV, Orb, Weights)
- implicit none
- double precision, allocatable :: TGroup(:,:,:,:)
- double precision, allocatable, intent(in) :: Coef(:)
- real, allocatable, Intent(inout) ::  Weights(:)
- DOUBLE PRECISION, allocatable :: Sums(:)
- integer, allocatable, intent(in) :: Vector(:,:)
- integer, allocatable :: counter(:,:,:)
- real :: sumtot
- integer :: remainder_x, remainder_y, remainder_z, j, k, l, p, el
- integer, intent(in) :: FX, FY, FZ, NV, Orb
- allocate (TGroup(FX, FY, FZ, NV-Orb))
- allocate (Sums(FX*FY*FZ))
- allocate (Weights(FX*FY*FZ))
- allocate (counter(FX, FY, FZ))
-
- !Initiates the counter and TGroupC elements at 0
-  do j=1,FX
-   do k=1,FY
-     do l=1,FZ
-       counter(j,k,l)=0
-       do p=1,NV-Orb
-         TGroup(FX,FY,FZ,p)=0
-       enddo
-     enddo
-   enddo
- enddo
- 
- !Sorts the energy coeeficients
- do j=1, (NV-Orb)
-        remainder_x=MODULO(Vector(1,j),FX)
-        remainder_y=MODULO(Vector(2,j),FY)
-        remainder_z=MODULO(Vector(3,j),FZ)
-        counter(remainder_x+1, remainder_y+1, remainder_z+1)=counter(remainder_x+1, remainder_y+1, remainder_z+1)+1
- 	 TGroup(remainder_x+1, remainder_y+1, remainder_z+1, counter(remainder_x+1, remainder_y+1, remainder_z+1))=Coef(j)
- enddo
-
- !Sums the squares  of all coefficients per group
- el=1
- do j=1, FX
-        do k=1, FY
-                do l=1, FZ
-			if (counter(j, k, l).gt.0) then
-			   do p=1, counter(j, k, l)
-			     TGroup(j, k, l,p)=TGroup(j, k, l,p)*(TGroup(j, k, l,p))
-			   enddo
-			   Sums(el)=SUM(TGroup(j, k, l,1:counter(j, k, l)))
-			   el=el+1
-			else 
-			   Sums(el)=0.0
-			   el=el+1
-		        endif
-                enddo
-        enddo
- enddo
- sumtot=SUM(Sums(:))
- do j=1, (FX*FY*FZ)
-	Weights(j)=Sums(j)/sumtot
- enddo
- deallocate (TGroup, Sums)
-END SUBROUTINE Sort
-
-!!!#################################################################################
-!!! SortC
-!!!     Sorts energy coefficients (compex number form) into appropriate groups 
-!!!	according to relative location to Gamma point. Then calculates the weight 
-!!!	of each group.
-!!!Input:       FoldX, FoldY, FoldZ, Vectors, CoefC, NV, Orb
-!!!Output:      Weights(array)
-!!!#################################################################################
-SUBROUTINE SortC(FX, FY, FZ, Vector, CoefC, NV, Orb, Weights)
- implicit none
- double complex, allocatable :: TGroupC(:,:,:,:)
- double complex, allocatable, intent(in) :: CoefC(:)
- real, allocatable, Intent(inout) ::  Weights(:)
- DOUBLE PRECISION, allocatable :: Sums(:)
- integer, allocatable, intent(in) :: Vector(:,:)
- integer, allocatable :: counter(:,:,:)
- real :: sumtot
- integer :: remainder_x, remainder_y, remainder_z, j, k, l, p, el
- integer, intent(in) :: FX, FY, FZ, NV, Orb
- allocate (TGroupC(FX, FY, FZ, NV-Orb))
- allocate (Sums(FX*FY*FZ))
- allocate (Weights(FX*FY*FZ))
- allocate (counter(FX,FY,FZ))
-
- !Initiates the counter and TGroupC elements at 0
- do j=1,FX
-   do k=1,FY
-     do l=1,FZ
-       counter(j,k,l)=0
-       do p=1,NV-Orb
-         TGroupC(j,k,l,p)=0.0
-       enddo
-     enddo
-   enddo
- enddo
-
- !Sorts the energy coeeficients
- do j=1, (NV-Orb)
-        remainder_x=MODULO(Vector(1,j), FX)
-        remainder_y=MODULO(Vector(2,j), FY)
-        remainder_z=MODULO(Vector(3,j), FZ)
-        counter(remainder_x+1, remainder_y+1, remainder_z+1)=counter(remainder_x+1, remainder_y+1, remainder_z+1)+1
- 	TGroupC(remainder_x+1, remainder_y+1, remainder_z+1, counter(remainder_x+1, remainder_y+1, remainder_z+1))=CoefC(j)
- enddo
-
- !Sums the squares  of all coefficients per group
- el=1
- do j=1, FX
-        do k=1, FY
-                do l=1, FZ
-			if (counter(j, k, l).gt.0) then
-			   do p=1, counter(j, k, l)
-			     TGroupC(j, k, l,p)=TGroupC(j, k, l,p)*conjg(TGroupC(j, k, l,p))
-			   enddo
-			   Sums(el)=SUM(TGroupC(j, k, l,1:counter(j, k, l)))
-			   el=el+1
-			else 
-			   Sums(el)=0.0
-			   el=el+1
-		        endif
-                enddo
-        enddo
- enddo
- sumtot=SUM(Sums)
- do j=1, (FX*FY*FZ)
-	Weights(j)=Sums(j)/sumtot
- enddo 
- deallocate (TGroupC, Sums)
-END SUBROUTINE SortC
-
-SUBROUTINE Delta(kval, wht, dval, fsize)
- implicit none
-
- integer, intent(in) :: fsize
- integer ::  i
- real, allocatable, intent(in) :: kval(:,:), wht(:)
- real, allocatable, intent(inout) :: dval(:)
- real, allocatable :: tempk(:), sumk(:)
-
- allocate(tempk(3))
- allocate(sumk(3))
- do i=1, 3
-  tempk(i)=0
-  sumk(i)=0
-  dval(i)=0
- end do
- do i=1, fsize
-  tempk(1)=tempk(1)+(wht(i)*kval(1,i))
-  tempk(2)=tempk(2)+(wht(i)*kval(2,i))
-  tempk(3)=tempk(3)+(wht(i)*kval(3,i))
- end do
- do i=1, fsize
-  sumk(1)=sumk(1)+((kval(1,i)-tempk(1))*(kval(1,i)-tempk(1))*wht(i))
-  sumk(2)=sumk(2)+((kval(2,i)-tempk(2))*(kval(2,i)-tempk(2))*wht(i))
-  sumk(3)=sumk(3)+((kval(3,i)-tempk(3))*(kval(3,i)-tempk(3))*wht(i))
- end do
- dval(1)=SQRT(sumk(1))
- dval(2)=SQRT(sumk(2))
- dval(3)=SQRT(sumk(3))
- deallocate(tempk, sumk)
-END SUBROUTINE Delta
-END MODULE Unfold
-
-!!!##################################################################################
-!!! 					MAIN
-!!!###################################################################################
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! fold2Bloch.f90		
+! 
+!    Unfold the data in case.vector[_1] file and compute Bloch spectral weight
+!
+!    Usage: 
+!       fold2Bloch -h # get help
+!       fold2Bloch -r case.vector[_1] x:y:z # real calculation (inversion symm.)
+!       fold2Bloch -c case.vector[_1] x:y:z # complex calc. (no inv. symm.)
+!       fold2Bloch case.vector[_1] x:y:z # complex calc. implied
+!       fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] ...
+!           case.normsoup[_1] case.normsodn[_1] x:y:z
+!
+!   Compilation:
+!       ifort -assume realloc_lhs -assume byterecl -g -traceback -check all ...
+!           -debug all -free util.F line_count.F90 NewK.F90 Sort.F90 ...
+!           SortC.F90 read_norms.F90 fold2Bloch.F90 -o fold2Bloch
+!
+! Copyright 2020 Oleg Rubel, Anton Bokhanchuk, Elias Assmann
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+!                               MAIN
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 PROGRAM fold2Bloch
-  use structmod, only: struct, struct_read
-  use Unfold
+use structmod, only: struct, struct_read
 
-  implicit none
+implicit none
 
- character(100) seedname, vectorname
- character(20) :: folds
- integer num_args,argcount !command line input argument counter
- integer jatom,i,j,k,jl,jj,l,q
- integer lmax,lomax,nloat, field
- integer unitklist,unitstruct,unitvector, unittargetvector, deltafunction
- character(70)startmessage
- character(30), allocatable :: args(:)
- logical :: usecomplex, dir
- INTEGER            NE, NV, ORB, FoldX, FoldY, FoldZ, ios, iocplx, nkcount, nkpoints
- DOUBLE PRECISION   KX, KY, KZ, WEIGHT
- CHARACTER(10)      KNAME
- character(5)       endout
- character :: bar
- real, allocatable :: Weights(:)
- real, allocatable :: NKVal(:,:), DKVal(:)
- DOUBLE PRECISION, allocatable ::  EIGVAL(:)
- DOUBLE PRECISION, allocatable ::   E(:,:),ELO(:,:,:)
- INTEGER, allocatable :: Vector(:,:)
- DOUBLE PRECISION, allocatable ::  Coef(:)
- DOUBLE COMPLEX, allocatable ::  CoefC(:)
- type(struct) stru
 
-  !default fileending: non spin-polarized
-  startmessage = "     /\/\/\ UNFOLDING VECTOR FILE /\/\/\"
-  unitvector = 11
-  unittargetvector = 12
-  unitklist = 13
-  unitstruct = 14
-  deltafunction = 15
-  !parameters
-  LMAX = 13
-  LOMAX = 3
-  nloat = 3
+INTEGER :: &
+    nargs, & !command line input argument counter
+    jatom,i,j,k,jl,jj,l,q, &
+    i2, & ! spinor dn component
+    lmax, lomax, nloat, field, &
+    unitklist, unitstruct, unitvector, unitout, & ! I/O unit numbers
+    unitvector2, & ! spinor dn component
+    unitnorm, unitnorm2, & ! fine I/O unit for spinor norm components
+    line_count, &
+    NE, NV, ORB, &
+    NE2, NV2, ORB2, & ! spinor dn component
+    FoldX, FoldY, FoldZ, ios, iocplx, nkcount, nkpoints, &
+    ios2 ! spinor dn component
+INTEGER, ALLOCATABLE :: &
+    Vector(:,:), &
+    Vector2(:,:) ! spinor dn component
+REAL, ALLOCATABLE :: &
+    Weights(:), &
+    Weights2(:), & ! spinor dn component
+    NKVal(:,:), DKVal(:)
+DOUBLE PRECISION :: &
+    KX, KY, KZ, WEIGHT, & ! k-point coordinates and weight
+    KX2, KY2, KZ2, WEIGHT2 ! spinor dn component
+DOUBLE PRECISION, ALLOCATABLE :: &
+    EIGVAL(:), &
+    EIGVAL2(:), & ! spinor dn component
+    E(:,:),ELO(:,:,:), &
+    E2(:,:),ELO2(:,:,:), & ! spinor dn component
+    Coef(:), & ! PW coeffieicnts
+    sonorm(:), sonorm2(:) ! norm of spin up/dn components for a spinor function
+DOUBLE COMPLEX, ALLOCATABLE :: &
+    CoefC(:), & ! PW coeffieicnts (complex)
+    CoefC2(:) ! spinor dn component
+CHARACTER :: &
+    casename*100, vectorname*100, normname*100, &
+    vectorname2*100, normname2*100, & ! spinor dn component
+    folds*20, &
+    KNAME*10, & ! k-point name
+    KNAME2*10, & ! spinor dn component
+    endout*5, &
+    bar
+CHARACTER(100), ALLOCATABLE :: &
+    args(:)
+LOGICAL :: &
+    usecomplex, dir, &
+    lso ! spin-orbit coupling
+
+TYPE(struct) stru ! structure specific info (see unil.F file)
+
+!! Set I/O unit numbers (SOC files will be defined later)
+
+unitvector = 11 ! vector file
+unitout = 12 ! output file
+unitklist = 13 ! case.klist
+unitstruct = 14 ! case struct
+
+!parameters
+LMAX = 13
+LOMAX = 3
+nloat = 3
+
+write(*,*) '**************************'
+write(*,*) '**     fold2Bloch       **'
+write(*,*) '** version May 22, 2020 **'
+write(*,*) '**************************'
+
+!! command line arguments read-in
+  
+nargs=iargc() ! number of input arguments
+allocate (args(nargs))
+write(*,'(A,I0,A)') 'Detected ', nargs,' input arguments'
+if (nargs==1) then ! get help
+    CALL GETARG(1,args(1))
+    if ( (args(1)=='-h') .or. (args(1)=='--help') ) then
+        GOTO 910 ! print help and exit
+    else ! unknown
+        GOTO 912 ! print error, usage options, and exit
+    endif
+elseif (nargs==2) then ! 2 input arguments (vector file and folds)
+    CALL GETARG(1,args(1))
+    CALL GETARG(2,args(2))
+    read(args(1),*) vectorname ! 1st argument is the vector file name
+    read(args(2),*) folds ! 2nd argument are folds FoldX:FoldY:FoldZ
+    usecomplex = .true. ! complex calcilation implied
+    lso = .false. ! no spin-orbit coupling
+elseif (nargs==3) then ! 3 arguments (-r/-c, vector file, folds)
+    CALL GETARG(1,args(1))
+    CALL GETARG(2,args(2))
+    CALL GETARG(3,args(3))
+    if (args(1)=='-r') then
+        usecomplex = .false.
+    elseif (args(1)=='-c') then
+        usecomplex = .true.
+    else ! imposible
+        GOTO 912 ! print error, usage options, and exit
+    endif
+    read(args(2),*) vectorname ! 2nd argument is the vector file name
+    read(args(3),*) folds ! 3rd argument are folds FoldX:FoldY:FoldZ
+    lso = .false. ! no spin-orbit coupling
+elseif (nargs==6) then ! 6 arguments (spin-orbit coupling)
+    do i=1,nargs
+        CALL GETARG(i,args(i))
+    end do
+    if (args(1)=='-so') then
+        lso = .true. ! enable SOC
+    else ! imposible
+        GOTO 912 ! print error, usage options, and exit
+    endif
+    read(args(2),*) vectorname ! should be case.vectorsoup[_X]
+    read(args(3),*) vectorname2 ! should be case.vectorsodn[_X]
+    read(args(4),*) normname ! should be case.normsoup[_X]
+    read(args(5),*) normname2 ! should be case.normsodn[_X]
+    read(args(6),*) folds ! 6th argument are folds FoldX:FoldY:FoldZ
+    usecomplex = .true. ! complex calcilation implied
+else ! impossible
+    write(*,'(A,I0,A)') 'Detected ', nargs,' input arguments'
+    GOTO 912 ! print error, usage options, and exit
+endif
+
+!! Check if vector file(s) and norm files (SOC only) are present
  
-  write(*,*) '		***********************'
-  write(*,*) '		** Fold2Bloch V 1.05 **'
-  write(*,*) '		** Build May 29, 2014 **'
-  write(*,*) '		***********************'
+inquire(file=vectorname, exist=dir)
+if (.not.(dir)) then
+    write(*,'(A)') trim(vectorname)//&
+        '  vector file does not exist or invalid file name entered'
+    GOTO 912 ! print error, usage options, and exit
+endif
+if (lso) then ! SOC only
+    inquire(file=vectorname2, exist=dir) ! case.vectorsodn[_X]
+    if (.not.(dir)) then
+        write(*,'(A)') trim(vectorname2)//&
+            '  vector file does not exist or invalid file name entered'
+        GOTO 912 ! print error, usage options, and exit
+    endif
+    inquire(file=normname, exist=dir) ! case.normsoup[_X]
+    if (.not.(dir)) then
+        write(*,'(A)') trim(normname)//&
+            '  norm file does not exist or invalid file name entered'
+        GOTO 912 ! print error, usage options, and exit
+    endif
+    inquire(file=normname2, exist=dir) ! case.normsodn[_X]
+    if (.not.(dir)) then
+        write(*,'(A)') trim(normname2)//&
+            '  norm file does not exist or invalid file name entered'
+        GOTO 912 ! print error, usage options, and exit
+    endif
+endif
 
-  !command line argument read-in
-  num_args=command_argument_count()
-  allocate (args(num_args))
-  argcount=1
-  usecomplex = .true.
-  do j=1,num_args
-     call get_command_argument(j,args(j))
-     if (num_args.eq.3) then
-        if (j.eq.1) then
-           if (args(j).eq.'-r') then    
-              usecomplex = .false.
-              write(*,*) '     Regular (non-complex) calculation indicated'
-          elseif (args(j).eq.'-c') then
-              usecomplex = .true.
-              write(*,*) '     Complex calculation indicated'
-           else
-              write(*,*) '     Unknown option. See below or type: "fold2Bloch -h" or "fold2Bloch --help" for more information.'
-              write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-              stop    
-           endif
-	elseif (j.eq.2) then
-           read(args(j),*) vectorname
-       else
-           read(args(j),*) folds
-       endif
-     elseif (num_args.eq.2) then
-	if ((j.eq.1).and.(args(j).eq.'-r'.or.args(j).eq.'-c')) then
-           write(*,*) '     Unknown number of folds. See below or type: "fold2Bloch -h" or "fold2Bloch --help" for more information.'
-           write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-           stop
-       elseif (j.eq.1) then
-          write(*,*) '     Complex calculation assumed (default)' 
-          read(args(j),*) vectorname
-       else 
-           read(args(j),*) folds
-       endif
-     elseif ((args(j).eq.'-h').or.(args(j).eq.'--help')) then
-       write(*,*) '     Usage: fold2Bloch [-r] case.vector[_1] x:y:z (folds)'
-       write(*,*) '     -r is an option indicating no oomplex number calculations use'
-       write(*,*) '     case.vector[_1] is a vector file name (ex. atom.vector, atom.vector_1)'
-       write(*,*) '     x:y:z integers, greater than 0, that represent a multiplicity in the corresponding directions used when constructing the supercell.'
-       stop
-     else  
-       write(*,*) '     Unknown option. See below or type: "fold2Bloch -h" or "fold2Bloch --help" for more information.'
-       write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-       stop 
-     endif 
-  enddo
- if (folds.eq.'') then
-   write(*,*) '     Unknown number of folds. See below or type: "fold2Bloch -h" or "fold2Bloch --help" for more information.'
-   write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-   stop
- endif
- 
- inquire(file=vectorname, exist=dir)
- if (.not.(dir)) then
-  write(*,50) trim(vectorname)//'  CASE FILE DOES NOT EXIST OR NO FILENAME ENTERED'
-  50 format(47A)
-  write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-  stop
- endif
+!! Check if the number of folds argument is in correct format
 
- i=INDEX(vectorname, '.')
- read (vectorname(1:i-1), *) seedname
- 
- !Check if the number of folds argument is in correct format
- i=0
- i=INDEX(folds, ':')
- if (i.eq.0) then
-   write(*,*) '     Unknown number of folds. See below or type: "fold2Bloch -h" or "fold2Bloch --help" for more information.'
-   write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-   stop
- endif
- read (folds(1:i-1), *, iostat=ios) FoldX
- if ((ios.ne.0).or.(FoldX.le.0)) then
-   write (*,*) '     Number of folds has to be a positive integer greater than 0'
-   stop
- endif
- folds=folds(i+1:)
- i=0
- i=INDEX(folds, ':')
- if (i.eq.0) then
-   write(*,*) '     Unknown number of folds. See below or type: "fold2Bloch -h" or "fold2Bloch --help" for more information.'
-   write(*,*) '     Usage: fold2Bloch [-r/-c] case.vector[_1] x:y:z (folds)'
-   stop
- endif
- read (folds(1:i-1),*, iostat=ios) FoldY
- if ((ios.ne.0).or.(FoldY.le.0)) then
-   write (*,*) '     Number of folds has to be a positive integer greater than 0'
-   stop
- endif
- read(folds(i+1:),*, iostat=ios) FoldZ
- if ((ios.ne.0).or.(FoldZ.le.0)) then
-   write (*,*) '     Number of folds has to be a positive integer greater than 0'
-   stop
- endif
- field=FoldX*FoldY*FoldZ
+i=INDEX(folds, ':')
+if (i.eq.0) then
+    write(*,*) 'Unknown number of folds. See below or type: "fold2Bloch -h" '//&
+        'for more information.'
+    GOTO 912 ! print error, usage options, and exit
+endif
+read (folds(1:i-1), *, iostat=ios) FoldX
+if ((ios.ne.0).or.(FoldX.le.0)) then
+    write (*,*) 'Number of folds has to be a positive integer greater than 0'
+    GOTO 912 ! print error, usage options, and exit
+endif
+folds=folds(i+1:)
+i=INDEX(folds, ':')
+if (i.eq.0) then
+    write(*,*) 'Unknown number of folds. See below or type: "fold2Bloch -h" '//&
+        'for more information.'
+    GOTO 912 ! print error, usage options, and exit
+endif
+read (folds(1:i-1),*, iostat=ios) FoldY
+if ((ios.ne.0).or.(FoldY.le.0)) then
+    write (*,*) 'Number of folds has to be a positive integer greater than 0'
+    GOTO 912 ! print error, usage options, and exit
+endif
+read(folds(i+1:),*, iostat=ios) FoldZ
+if ((ios.ne.0).or.(FoldZ.le.0)) then
+    write (*,*) 'Number of folds has to be a positive integer greater than 0'
+    GOTO 912 ! print error, usage options, and exit
+endif
+field=FoldX*FoldY*FoldZ
 
- !Check if .klist and .struct files exist
- inquire(file=trim(seedname)//'.struct', exist=dir)
- if (.not.(dir)) then
-  write(*,*) "     ", trim(seedname)//'.struct file does not exist'
-  stop
- else
-  open(unit=unitstruct,file=trim(seedname)//'.struct',status='old')
-  call struct_read(unitstruct, stru)
-  close(unitstruct)
- endif
+!! Get case name
 
- dir=1
- i=1
- endout=''
- do while (dir)
-   inquire(file=trim(seedname)//'.f2b'//trim(endout), exist=dir)
-   if (dir) then
-     write(endout, "('_', I2.2)") i
-     i=i+1
-   end if
- end do
+i=INDEX(vectorname, '.')
+read (vectorname(1:i-1), *) casename
 
- write(*,35)"     FILE TO PROCESS: ", vectorname
- write(*,*)startmessage
- 35 format(a23, a70)
+!! Get number of atoms from case.struct
 
- inquire(file=trim(seedname)//'.klist', exist=dir)
- if (.not.(dir)) then
-   write(*,*) trim("     WARNING: ")//trim(seedname)//'.klist could not be found. Progress can not be calculated!'
-   write(*,*) "      Continuing to process file..."
- else
-   open(unit=unitklist,file=trim(seedname)//'.klist',status='old')
-   nkpoints = line_count(unitklist) !Determines the number of K points
-   close(unitklist)
- endif
- 
- allocate( E(LMAX,stru%nat) )
- allocate( ELO(0:LOMAX,nloat,stru%nat) )
- 
- !open(unit=deltafunction, file=trim(seedname)//".unfolDelta"//trim(endout), &
-  !    & status='unknown', form='formatted')
- open(unit=unittargetvector,file=trim(seedname)//".f2b"//trim(endout), &
-      & status='unknown',form='formatted')   
- open(unit=unitvector, file=vectorname, status='old',form='unformatted')
- do jatom= 1,stru%nat
+inquire(file=trim(casename)//'.struct', exist=dir)
+if (.not.(dir)) then ! case.struct is not present
+    write(*,*) "     ", trim(casename)//'.struct file does not exist'
+    ERROR STOP 1
+else
+    open(unit=unitstruct,file=trim(casename)//'.struct',status='old')
+    call struct_read(unitstruct, stru) ! read case.struct and return stru%nat
+    close(unitstruct)
+endif
+
+!! Set output file name
+
+dir=.TRUE.
+i=1
+endout=''
+do while (dir)
+    inquire(file=trim(casename)//'.f2b'//trim(endout), exist=dir)
+    if (dir) then ! the file already exist
+        write(endout, "('_', I0)") i ! append the name with next integer
+        i=i+1
+    end if
+end do
+
+!! Check if case.klist is avalable to determine number of k points for pregress
+!! calculation
+
+inquire(file=trim(casename)//'.klist', exist=dir)
+if (.not.(dir)) then
+    write(*,*) trim("WARNING: ")//trim(casename)//'.klist could '//&
+        'not be found. Progress can not be calculated!'
+    write(*,*) "Continuing to process file..."
+else
+    open(unit=unitklist,file=trim(casename)//'.klist',status='old')
+    nkpoints = line_count(unitklist) ! read the number of K points
+    close(unitklist)
+endif
+
+!! Display starting message
+
+write(*,'(A,A)')"FILE TO PROCESS: ", TRIM(vectorname)
+write(*,'(A)') "/\/\/\ UNFOLDING VECTOR FILE /\/\/\"
+
+!! Open vector file(s) and output file
+
+open(unit=unitout,file=trim(casename)//".f2b"//trim(endout), &
+    status='unknown',form='formatted')   
+open(unit=unitvector, file=vectorname, status='old',form='unformatted')
+if (lso) then ! SOC needs 2 vector files and 2 norm files
+    unitvector2 = 21 ! vector file 2
+    unitnorm = 22 ! norm file 1
+    unitnorm2 = 23 ! norm file 2
+    open(unit=unitvector2, file=vectorname2, status='old',form='unformatted')
+    open(unit=unitnorm, file=normname, status='old',form='formatted')
+    open(unit=unitnorm2, file=normname2, status='old',form='formatted')
+endif
+
+!! Read atom-specific info from the vector file
+!! (dummy, values are not used to compute Bloch character)
+
+allocate( E(LMAX,stru%nat) )
+allocate( ELO(0:LOMAX,nloat,stru%nat) )
+if (lso) then ! SOC
+    allocate( E2(LMAX,stru%nat) )
+    allocate( ELO2(0:LOMAX,nloat,stru%nat) )
+endif
+do jatom= 1,stru%nat
     read(unitvector) (E(jl,jatom),jl=1,LMAX)
     read(unitvector) ((ELO(jl,k,jatom),jl=0,LOMAX),k=1,nloat)
- enddo
- nkcount=0
- ios=0
- bar='\'
- do while (ios.eq.0)
-    read(unitvector,end=888,err=888, iostat=ios) KX, KY, KZ, KNAME, NV, NE, WEIGHT
-    write(*,45) 'Processing K-Point:', KX, KY, KZ
-    45 format(a25, f6.3, f6.3, f6.3)
+    if (lso) then ! SOC
+        read(unitvector2) (E2(jl,jatom),jl=1,LMAX)
+        read(unitvector2) ((ELO2(jl,k,jatom),jl=0,LOMAX),k=1,nloat)
+    endif
+enddo
+deallocate(E,ELO) ! discard values
+
+!! MAIN LOOP
+
+nkcount=0
+ios=0
+bar='\'
+do while (ios.eq.0)
+    read(unitvector,end=888,err=911, iostat=ios) &
+        KX, KY, KZ, KNAME, NV, NE, WEIGHT
+    if (lso) then ! SOC
+        read(unitvector2,end=888,err=911, iostat=ios2) &
+            KX2, KY2, KZ2, KNAME2, NV2, NE2, WEIGHT2
+        ! check consistency of vector files
+        if ( (KX .ne. KX2) .or. (KY .ne. KY2) .or. (KZ .ne. KZ2) .or. &
+                (NV .ne. NV2) .or. (NE .ne. NE2) .or. (ios .ne. ios2) ) then
+            write(*,*) 'inconsistency detected between up/dn vector files'
+            write(*,*) 'KX=', KX, 'KX2=', KX2
+            write(*,*) 'KY=', KY, 'KY2=', KY2
+            write(*,*) 'KZ=', KZ, 'KZ2=', KZ2
+            write(*,*) 'NV=', NV, 'NV2=', NV2
+            write(*,*) 'NE=', NE, 'NE2=', NE2
+            write(*,*) 'IOSTAT specifier: ios=', ios, 'ios2=', ios2
+            ERROR STOP 1
+        endif
+    endif
+    write(*,'(a, f6.3, f6.3, f6.3)') 'Processing K-Point:', KX, KY, KZ
     nkcount=nkcount+1
-!    call progress(bar)
-    !write(unittargetvector,*) '##############################################'
-    !write(unittargetvector,*) KX, KY, KZ
-    !write(unittargetvector,*) '##############################################'
+    allocate( NKVal(3,FoldX*FoldY*FoldZ) )
     call NewK(KX, KY, KZ, FoldX, FoldY, FoldZ, NKVal)
     allocate( Vector(3,NV) )
     read(unitvector) (Vector(1,I),Vector(2,I),Vector(3,I),I=1,NV)
-    !write(unittargetvector,50) (Vector(1,I),Vector(2,I),Vector(3,I),I=1,NV)
-    !50 format(i4, i4, i4)
-    !write(unittargetvector,*) NV
     do l=2, NV !Determine the number of local orbitals
-       if ((Vector(1,l).eq.Vector(1,1)).and.(Vector(2,l).eq.Vector(2,1)).and.(Vector(3,l).eq.Vector(3,1))) then 
-          ORB = NV-l+1
-          exit
-       endif
+        if ( (Vector(1,l).eq.Vector(1,1)) .and. (Vector(2,l).eq.Vector(2,1)) &
+                .and. (Vector(3,l).eq.Vector(3,1)) ) then 
+            ORB = NV-l+1
+            exit
+        endif
     enddo
+    if (lso) then ! SOC
+        allocate( Vector2(3,NV) )
+        read(unitvector2) (Vector2(1,I),Vector2(2,I),Vector2(3,I),I=1,NV)
+        do l=2, NV !Determine the number of local orbitals
+            if ( (Vector2(1,l).eq.Vector2(1,1)) &
+                    .and. (Vector2(2,l).eq.Vector2(2,1)) &
+                    .and. (Vector2(3,l).eq.Vector2(3,1)) ) then 
+                ORB2 = NV-l+1
+                exit
+            endif
+        enddo
+        ! check consistency of vector files
+        if ( (ORB .ne. ORB2) ) then
+            write(*,*) 'inconsistency detected between up/dn vector files'
+            write(*,*) 'ORB=', ORB, 'ORB2=', ORB2
+            ERROR STOP 1
+        endif
+    endif
     allocate(EIGVAL(NE))
+    if (lso) then ! SOC
+        allocate( EIGVAL2(NE), sonorm(NE), sonorm2(NE) )
+        ! read norms from files for all eigenvalues
+        CALL read_norms(unitnorm, unitnorm2, NE, &! <-- in
+            sonorm, sonorm2) ! --> out
+    endif
     do jj = 1, NE
-      allocate(Coef(NV),CoefC(NV))
-      read(unitvector) I, EIGVAL(I)
-      !write(unittargetvector, *) EIGVAL(jj)
-      !write(unittargetvector,*) '##############################################'
-      if (usecomplex) then
-          read(unitvector, ioStat=iocplx) CoefC(1:NV)
-          if (iocplx.ne.0) then
-            write(*,*)
-            write(*,*) "Ooops,  you either forgot [-r] (no complex calculation) switch, or there are not enough coefficients."
-            stop
-          endif
-	   call SortC(FoldX, FoldY, FoldZ, Vector, CoefC, NV, Orb, Weights)
-      else
-          read(unitvector) Coef(1:NV)
-          call Sort(FoldX, FoldY, FoldZ, Vector, Coef, NV, Orb, Weights)
-      endif 
-      allocate(DKVal(3))
-   !   call Delta(NKVal, Weights, DKVal, FoldX*FoldY*FoldZ)
-      do q=1, field !Writes results to a file
-        write(unittargetvector,100) (NKval(1,q)/FoldX), (NKVal(2,q)/FoldY) ,(NKVal(3,q)/FoldZ), EIGVAL(jj), Weights(q)
-        100 format(f11.6, f11.6, f11.6, f11.6, f11.6)
-      enddo
-   !   write(deltafunction, 99) Eigval(jj), DKVal(1), DKVal(2), DKVal(3)
-   !  99 format(f11.6, f11.6, f11.6, f11.6)
-      deallocate(Weights, CoefC, Coef, DKVal)
-    enddo
+        read(unitvector) I, EIGVAL(I)
+        if (i .ne. jj) then
+            write(*,*) 'inconsistency in eigenvalue index'
+            write(*,*) 'jj=', jj, 'I=', I
+            ERROR STOP 1
+        endif
+        if (lso) then ! SOC
+            read(unitvector2) I2, EIGVAL2(I2)
+            ! check consistency of vector files
+            if ( (EIGVAL(I) .ne. EIGVAL2(I2)) ) then
+                write(*,*) 'inconsistency detected between up/dn vector files'
+                write(*,*) 'I=', I, 'I2=', I2
+                write(*,*) 'EIGVAL(I)=', EIGVAL(I), 'EIGVAL2(I2)=', EIGVAL2(I2)
+                ERROR STOP 1
+            endif
+        endif
+        if (usecomplex) then
+            allocate( CoefC(NV) )
+            read(unitvector, ioStat=iocplx) CoefC(1:NV)
+            if (iocplx.ne.0) then
+                write(*,*)
+                write(*,*) "Ooops,  you either forgot [-r] (no complex "//&
+                    "calculation) switch, or there are not enough coefficients."
+                stop
+            endif
+            allocate( Weights(FoldX*FoldY*FoldZ) )
+            call SortC(FoldX, FoldY, FoldZ, Vector, CoefC, NV, Orb, Weights)
+            deallocate(CoefC)
+            if (lso) then ! SOC
+                allocate( CoefC2(NV) )
+                read(unitvector2, ioStat=iocplx) CoefC2(1:NV)
+                if (iocplx.ne.0) then
+                    write(*,*)
+                    write(*,*) "Ooops, there are not enough PW coefficients."
+                    stop
+                endif
+                allocate( Weights2(FoldX*FoldY*FoldZ) )
+                call SortC(FoldX, FoldY, FoldZ, Vector2, CoefC2, &
+                    NV, Orb, Weights2)
+                deallocate(CoefC2)
+                ! update Bloch spectral weights with the corresponding norms
+                if ( (sonorm(jj) + sonorm2(jj)) < 0.9999 .or. &
+                        (sonorm(jj) + sonorm2(jj)) > 1.0001 ) then
+                    write(*,*) 'norms do not add up to 1'
+                    write(*,*) 'jj=', jj
+                    write(*,*) 'sonorm(jj)=', sonorm(jj), &
+                        'sonorm2(jj)', sonorm2(jj)
+                    ERROR STOP 1
+                else ! norm check OK, proceed with weights merge
+                    Weights = Weights*sonorm(jj)
+                    Weights2 = Weights2*sonorm2(jj)
+                    Weights = Weights + Weights2
+                endif
+                deallocate(Weights2)
+            endif
+        else
+            allocate( Coef(NV) )
+            read(unitvector) Coef(1:NV)
+            call Sort(FoldX, FoldY, FoldZ, Vector, Coef, NV, Orb, Weights)
+            deallocate(Coef)
+        endif
+         !Writes results to a file
+        do q=1, field
+            write(unitout,'(5(f11.6))') (NKval(1,q)/FoldX), (NKVal(2,q)/FoldY),&
+                (NKVal(3,q)/FoldZ), EIGVAL(jj), Weights(q)
+        enddo
+        deallocate(Weights)
+    enddo ! loop ofver eigenvalues
     deallocate(EIGVAL,Vector, NKVal)
- 888  continue 
- enddo
+    if (lso) deallocate( EIGVAL2, sonorm, sonorm2 ) ! SOC
+    888  continue 
+enddo ! end of vector file
 
- write(*,*)
- write(*,*) "     \/\/\/ UNFOLDING FINISHED SUCCESSFULLY \/\/\/"
- write(*,*) "     Number of K points processed:", nkcount
- write(*,*) "     Data was written to: ", trim(seedname)//".f2b"//trim(endout)
- write(*,*) "     Data format: KX, KY, KZ, Eigenvalue(Ry), Weight"
+!! Close I/O files
 
- if (.not.(dir)) then
-   write(*,*) "     ", trim(seedname)//'.klist could not be found for comparison.'
- else
-   if (nkcount.lt.nkpoints) then
-     write(*,*) "     ", trim(seedname)//'.klist file has ',nkpoints-nkcount,' K point(s) more than the vector file.'
-   elseif (nkcount.gt.nkpoints)  then
-     write(*,*) "     ", trim(seedname)//'.klist file has ',nkcount-nkpoints,' K point(s) less than the vector file.' 
-   else
-     write(*,*) "     ", trim(seedname)//'.klist matches the vector file.'
-   endif
- endif
- !close(deltafunction)
- close(unitvector)
- close(unittargetvector)
+close(unitvector)
+close(unitout)
+if (lso) then ! SOC
+    close(unitvector2)
+    close(unitnorm)
+    close(unitnorm2)
+endif
+
+!! Display finish message
+
+write(*,'(A)') "\/\/\/ UNFOLDING FINISHED SUCCESSFULLY \/\/\/"
+write(*,'(A,I0)') "Number of K points processed: ", nkcount
+write(*,'(A,A)') "Data was written to: ", trim(casename)//".f2b"//trim(endout)
+write(*,'(A)') "Data format: KX, KY, KZ, Eigenvalue(Ry), Bloch weight"
+
+!! Compare number of k point found in the vector file with the number of 
+!! point in case.klist file
+
+if (.not.(dir)) then
+    write(*,'(A)') trim(casename)//&
+        '.klist could not be found for comparison.'
+else
+    if (nkcount.lt.nkpoints) then
+        write(*,'(A,I0,A)') trim(casename)//'.klist file has ', &
+            nkpoints-nkcount,' K point(s) more than the vector file.'
+    elseif (nkcount.gt.nkpoints)  then
+        write(*,'(A,I0,A)') trim(casename)//'.klist file has ', &
+            nkcount-nkpoints,' K point(s) less than the vector file.' 
+    else
+        write(*,'(A)') trim(casename)//'.klist matches the vector file.'
+    endif
+endif
+
+STOP ! Main part is succesfuly compleated (exit code 0)
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+!                           Help
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+910 CONTINUE
+write(*,'(A)') 'Usage options:'
+write(*,'(A)') 'fold2Bloch -h # get help'
+write(*,'(A)') 'fold2Bloch -r case.vector[_1] x:y:z '//&
+    '# real calculation (inversion symm.) no SO'
+write(*,'(A)') 'fold2Bloch -c case.vector[_1] x:y:z '//&
+    '# complex calc. (no inv. symm.) no SO'
+write(*,'(A)') 'fold2Bloch case.vector[_1] x:y:z '//&
+    '# complex calc. implied no SO'
+write(*,'(A)') 'fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] '//&
+    'case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit'
+STOP ! legitimate exit
+
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+!                           Errors
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+! vector file
+911 CONTINUE
+ERROR STOP 'error detected when reading vector file!'
+
+! input options
+912 CONTINUE
+write(*,'(A)') 'ERROR: Unable to recognize comand line options. '//&
+    'Possible options are:'
+write(*,'(A)') 'fold2Bloch -h # get help'
+write(*,'(A)') 'fold2Bloch -r case.vector[_1] x:y:z '//&
+    '# real calculation (inversion symm.) no SO'
+write(*,'(A)') 'fold2Bloch -c case.vector[_1] x:y:z '//&
+    '# complex calc. (no inv. symm.) no SO'
+write(*,'(A)') 'fold2Bloch case.vector[_1] x:y:z '//&
+    '# complex calc. implied no SO'
+write(*,'(A)') 'fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] '//&
+    'case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit'
+ERROR STOP
+
 END PROGRAM fold2Bloch

@@ -225,7 +225,7 @@ contains
     real(DP), parameter :: PI         = 3.1415926535897932d0
     real(DP), parameter :: ORTHO_TEST = 1.d-12
     real(DP), parameter :: SQ3        = sqrt(3d0)
-    integer :: iat, ineq, N
+    integer :: iat, ineq, N, i
     ! “Bravais lattice” and “lattice->cartesian” transformation
     ! matrices [in some cases, the two are different], both for direct
     ! and reciprocal space
@@ -256,9 +256,9 @@ contains
        read(lun, '(A, 5X, I5, 5X, F10.8, 5X, F10.5, 5X, F5.2)') &
             stru%aname(iat), stru%npt(iat), stru%r0(iat), stru%rmt(iat), &
             stru%Z(iat)
-       read(lun,'(20X, 3F10.7)') stru%locrot(1, :, iat)
-       read(lun,'(20X, 3F10.7)') stru%locrot(2, :, iat)
-       read(lun,'(20X, 3F10.7)') stru%locrot(3, :, iat)
+       read(lun,'(20X, 3F10.7)') (stru%locrot(1, i, iat), i=1,3)
+       read(lun,'(20X, 3F10.7)') (stru%locrot(2, i, iat), i=1,3)
+       read(lun,'(20X, 3F10.7)') (stru%locrot(3, i, iat), i=1,3)
     end do countneq
 
     stru%nneq = sum(stru%mult)
@@ -421,5 +421,3 @@ contains
     stru%brlat   = br2_dir
   end subroutine struct_read
 end module structmod
-
-
