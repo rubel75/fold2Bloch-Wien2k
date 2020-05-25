@@ -12,9 +12,7 @@
 !           case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit coupling
 !
 !   Compilation:
-!       ifort -assume realloc_lhs -assume byterecl -g -traceback -check all ...
-!           -debug all -free util.F line_count.F90 NewK.F90 Sort.F90 ...
-!           SortC.F90 read_norms.F90 fold2Bloch.F90 -o fold2Bloch
+!       see https://github.com/rubel75/fold2Bloch-Wien2k/wiki/Installation
 !
 ! Copyright 2020 Oleg Rubel, Anton Bokhanchuk, Elias Assmann
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
