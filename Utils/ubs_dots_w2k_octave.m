@@ -11,8 +11,10 @@
 %    next within Octave execute the script
 %    >> ubs_dots_w2k_octave
 %
-% ported from Matlab (Sept 12, 2017)
-% updated for compatibility with Octave 4.0.x (Aug 3, 2019)
+% Update history:
+% - ported from Matlab (Sept 12, 2017)
+% - updated for compatibility with Octave 4.0.x (Aug 3, 2019)
+% - added periodic images of the BZ (May 26, 2020)
 %
 % (c) Oleg Rubel, McMaster University
 

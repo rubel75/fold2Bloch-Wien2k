@@ -1,7 +1,10 @@
 function ubs_dots
 % Plot undolded band structure
-% 
-% modified 21 Jan 2016
+%
+% Update history:
+% - added periodic images of the BZ (May 26, 2020)
+%
+% (c) Oleg Rubel, McMaster University
 
 %% Init. parameters
 KPATH = [0 1/2 0; ...
