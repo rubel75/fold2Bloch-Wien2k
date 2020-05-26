@@ -15,7 +15,7 @@ Unfolding of first-principle electronic band structure obtained with [WIEN2k](ht
 
 For installation and tutorials, please refer to [wiki page](https://github.com/rubel75/fold2Bloch/wiki)
 
-Examples of "real life" applications can be found in [arXiv:1405.4218](http://arxiv.org/abs/1405.4218)
+Examples of "real life" applications can be found in [Phys. Rev. B **90**, 115202 (2014)](http://olegrubel.mcmaster.ca/publications/2014/Rubel_PRB_90_115202.pdf) and [Phys. Rev. Materials **2**, 114604 (2018)] (http://olegrubel.mcmaster.ca/publications/2018/Zheng_PRMat_2_2018.pdf)
 
 Please communicate your feedback, support or feature requests via WIEN2k [mailing list](http://www.wien2k.at/reg_user/mailing_list)
 
