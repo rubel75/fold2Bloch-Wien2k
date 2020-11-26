@@ -21,6 +21,7 @@ pwr = 1/1; % power for result plotting
          % 0 - folded bands (needs wth = 0)
 msz = 10; % marker size for plot
 lwdth = 0.5; % plot line width
+fontSize = 9; % points
 PLTSZ = [1 1 600/1.5 300/1.5]; % plot size
 wth = 0.05; % threshold weight
 clrmp = jet;    % flipud(gray)
@@ -34,6 +35,7 @@ clrmp = jet;    % flipud(gray)
 G = [ 0.333333  0.000000  0.000000;
       0.000000  0.166667  0.000000;
       0.000000  0.000000  0.111111]; % Reciprocal latt. vect. from *.outputkgen
+roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 
 
 %% INITIALIZATION
@@ -42,17 +44,25 @@ G = [ 0.333333  0.000000  0.000000;
 % KEIG - k-list for eigenvalues
 % W - list of characters
 
+%% Convert energy units [Ry] -> [eV]
+EIG = EIG*ry2ev;
+Ef = Ef*ry2ev;
+ERANGE = ERANGE*ry2ev;
+
 %% MAIN
 L = [];
 ENE = [];
 WGHT = [];
-G = G'; % transpose G matrix
+G = G'; % transpose G matrix (need for Wien2k)
 for i=1 : 3
     G(i,:)=G(i,:)*FOLDS(i); % rescale reciprocal lattice vectors 
 end                         % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G);
 KEIG = coordTransform(KEIG,G);
+epsk = [roundOffErrK roundOffErrK roundOffErrK]; % k rounding error
+epsk = coordTransform(epsk,G); % transform to Cart. coords
+epsk = sqrt(dot(epsk,epsk)); % get magnitude of the vector
 XTICKS = [0];
 for ikp = 1 : size(KPATH,1)-1
     B = KPATH(ikp,:) - KPATH(ikp+1,:);
@@ -75,10 +85,10 @@ for ikp = 1 : size(KPATH,1)-1
                     end
                 end
             end
-            if dist < eps % k-point is on the path
+            if dist < epsk % k-point is on the path
                 A = KPATH(ikp,:) - KEIG(j,:);
                 x = dot(A,B)/dk;
-                if x > 0  &&  x-dk < eps % k-point is within the path range
+                if x >= 0  &&  x <= dk+epsk % k-point is within the path range
                     L = [L; x+dl]; % append k-point coordinate along the path
                     ENE = [ENE; EIG(j)]; % append energy list
                     WGHT = [WGHT; W(j)];
@@ -102,12 +112,13 @@ hFig = figure(1);
 
 % Fig 1(a)
 subplot(1,2,1);
+set(gca,'FontSize',fontSize);
 set(hFig, 'Position', PLTSZ, 'PaperPositionMode','auto')
 map = colormap(clrmp);
 WGHTRS = rescale(WGHT,pwr);
-scatter(L,(ENE-Ef)*ry2ev, WGHTRS*msz, WGHTRS,'LineWidth',lwdth);
+scatter(L,(ENE-Ef), WGHTRS*msz, WGHTRS,'LineWidth',lwdth);
 hold on;
-axis([0 max(L) min((ENE-Ef)*ry2ev) max((ENE-Ef)*ry2ev)])
+axis([XTICKS(1) XTICKS(end) ERANGE(1)-Ef ERANGE(2)-Ef])
 yticks = get(gca,'ytick');
 set(gca,'YTick',yticks);
 for i = 1 : length(yticks)
@@ -122,12 +133,12 @@ set(gca,'XGrid','on', 'GridLineStyle','-');
 caxis([0 1]); % normalize intensities to 1
 xlabel('Wave vector')
 ylabel('Energy (eV)')
-axis([0 max(L) min((ENE-Ef)*ry2ev) max((ENE-Ef)*ry2ev)])
 box on
 hold off
 
 % Fig 1(b)
 subplot(1,2,2);
+set(gca,'FontSize',fontSize);
 DAT = linspace(0,1,10);
 DATX = ones(size(DAT));
 DATRS = rescale(DAT,pwr);
@@ -143,9 +154,9 @@ function W = coordTransform(V,G)
 % transform vector V(:,3) in G(3,3) coord. system -> W(:,3) in Cartesian coordinates
 % G vector elements are in columns!
 W = zeros(size(V));
-for i = 1:length(V)
+for i = 1:size(V,1)
     W(i,:) = G(1,:)*V(i,1) + G(2,:)*V(i,2) + G(3,:)*V(i,3);
-end;
+end
 % -------------------------------------------------------------------------
 function WRESCL = rescale(W,pwr)
 % rescale weights using a power functio W^pwr
@@ -166,7 +177,7 @@ denomabs = sqrt(dot(denom,denom));
 if denomabs < eps
     display(X1); display(X2);
     error('X1 = X2');
-end;
+end
 numer = cross( X0-X1 , X0-X2 );
 numerabs = sqrt(dot(numer,numer));
 RES = numerabs/denomabs;
