@@ -194,7 +194,7 @@ RES = numerabs/denomabs;
 if RES <= epsk
     if norm(X0-X1) + norm(X0-X2) - norm(X1-X2) >  2*epsk
         RES = Inf; % exclude collinear points that are not on the segment
-    end
-end
+    end;
+end;
 endfunction
 % -------------------------------------------------------------------------
