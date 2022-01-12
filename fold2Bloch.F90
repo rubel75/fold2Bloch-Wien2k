@@ -365,6 +365,7 @@ do while (ios.eq.0)
                 ERROR STOP 1
             endif
         endif
+        allocate( Weights(FoldX*FoldY*FoldZ) )
         if (usecomplex) then
             allocate( CoefC(NV) )
             read(unitvector, ioStat=iocplx) CoefC(1:NV)
@@ -374,7 +375,6 @@ do while (ios.eq.0)
                     "calculation) switch, or there are not enough coefficients."
                 stop
             endif
-            allocate( Weights(FoldX*FoldY*FoldZ) )
             call SortC(FoldX, FoldY, FoldZ, Vector, CoefC, NV, Orb, Weights)
             deallocate(CoefC)
             if (lso) then ! SOC
@@ -406,7 +406,12 @@ do while (ios.eq.0)
             endif
         else
             allocate( Coef(NV) )
-            read(unitvector) Coef(1:NV)
+            read(unitvector, ioStat=iocplx) Coef(1:NV)
+            if (iocplx.ne.0) then
+                write(*,*)
+                write(*,*) "Ooops, there is an error in reading the vector file in real mode [-r]."
+                stop
+            endif
             call Sort(FoldX, FoldY, FoldZ, Vector, Coef, NV, Orb, Weights)
             deallocate(Coef)
         endif

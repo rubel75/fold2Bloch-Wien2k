@@ -7,8 +7,8 @@
 
 # Intel fortran compiler (gfortran options are in brackets)
 FC = ifort # (gfortran)
-FCFLAGS = # none
-FLFLAGS = -free # (-ffree-form)
+FCFLAGS = #-free -g -traceback -check all -debug all # none
+FLFLAGS = -free #-g -traceback -check all -debug all # (-ffree-form)
 
 # gfortran compiler
 
