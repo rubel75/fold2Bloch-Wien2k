@@ -5,12 +5,15 @@
 # make clean
 # make veryclean
 
-# Intel fortran compiler (gfortran options are in brackets)
-FC = ifort # (gfortran)
-FCFLAGS = #-free -g -traceback -check all -debug all # none
-FLFLAGS = -free #-g -traceback -check all -debug all # (-ffree-form)
+# Intel fortran compiler
+FC = ifort
+FLFLAGS = # none
+FCFLAGS = -free #-g -traceback -check all -debug all
 
 # gfortran compiler
+#FC = gfortran
+#FLFLAGS = # none
+#FCFLAGS = -ffree-form
 
 
 # ~~~ Do not edit after that line ~~~
@@ -24,16 +27,16 @@ SRCS = $(patsubst %.F, %.o, $(wildcard *.F)) \
 all: $(PROGRAM)
 
 $(PROGRAM): $(SRCS)
-	$(FC) $(FCFLAGS) $(FLINK) -o $@ $^
+	$(FC) $(FLFLAGS) $(FLINK) -o $@ $^
 
 %.o: %.F
-	$(FC) $(FLFLAGS) $(FOPT) -c $<
+	$(FC) $(FCFLAGS) $(FOPT) -c $<
 
 %.o: %.F90
-	$(FC) $(FLFLAGS) $(FOPT) -c $<
+	$(FC) $(FCFLAGS) $(FOPT) -c $<
 
 #%.mod: %.h
-#	$(FC) $(FLFLAGS) -o $@ $<
+#	$(FC) $(FCFLAGS) -o $@ $<
 
 
 

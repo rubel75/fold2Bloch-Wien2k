@@ -87,7 +87,7 @@ nloat = 3
 
 write(*,*) '**************************'
 write(*,*) '**     fold2Bloch       **'
-write(*,*) '** version May 22, 2020 **'
+write(*,*) '** version Jan 12, 2022 **'
 write(*,*) '**************************'
 
 !! command line arguments read-in
@@ -251,6 +251,11 @@ endif
 !! Display starting message
 
 write(*,'(A,A)')"FILE TO PROCESS: ", TRIM(vectorname)
+if (lso) then
+    write(*,'(A,A)')"                 ", TRIM(vectorname2)
+    write(*,'(A,A)')"additional norm files: ", TRIM(normname)
+    write(*,'(A,A)')"                       ", TRIM(normname2)
+endif
 write(*,'(A)') "/\/\/\ UNFOLDING VECTOR FILE /\/\/\"
 
 !! Open vector file(s) and output file
@@ -423,7 +428,7 @@ do while (ios.eq.0)
         deallocate(Weights)
     enddo ! loop ofver eigenvalues
     deallocate(EIGVAL,Vector, NKVal)
-    if (lso) deallocate( EIGVAL2, sonorm, sonorm2 ) ! SOC
+    if (lso) deallocate( EIGVAL2, Vector2, sonorm, sonorm2 ) ! SOC
     888  continue 
 enddo ! end of vector file
 
