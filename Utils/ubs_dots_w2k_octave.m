@@ -24,7 +24,9 @@ function ubs_dots_w2k_octave
 KPATH = [1/2 0 0;...
          0 0 0; ...
          1/2 1/2 0]; % k-point path
-FOLDS = [2 2 2]; % multiplicity in the corresponding directions used when constructing the super-cell
+Dp2s = [1 0 -1
+        0 2 0
+        1 0 1]; % transformation matrix used to transform a primitive cell to a supercell
 KLABEL = {'L'; 'G'; 'X'};
 finpt = 'SiGe.f2b'; % input file name
 Ef = 0.385799; % Fermi energy (Ry)
@@ -64,8 +66,8 @@ L = [];
 ENE = [];
 WGHT = [];
 for i=1 : 3
-    G(i,:)=G(i,:)*FOLDS(i); % rescale reciprocal lattice vectors 
-end                         % from supercell to primitive cell
+    G(i,:)=Dp2s*transpose(G(i,:)); % rescale reciprocal lattice vectors 
+end                                % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G);
 KEIG = coordTransform(KEIG,G);

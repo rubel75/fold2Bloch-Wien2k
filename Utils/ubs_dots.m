@@ -10,7 +10,9 @@ function ubs_dots
 KPATH = [0 1/2 0; ...
         0 0 0; ...
         0 0 1/2]; % k-point path
-FOLDS = [1 2 3]; % multiplicity in the corresponding directions used when constructing the super-cell
+Dp2s = [1 0 -1
+        0 2 0
+        1 0 1]; % transformation matrix used to transform a primitive cell to a supercell
 KLABEL = {'Y'; 'G'; 'Z'};
 finpt = '6-atom2D.f2b'; % input file name
 Ef = 0.0460363511; % Fermi energy (Ry)
@@ -55,8 +57,8 @@ ENE = [];
 WGHT = [];
 G = G'; % transpose G matrix (need for Wien2k)
 for i=1 : 3
-    G(i,:)=G(i,:)*FOLDS(i); % rescale reciprocal lattice vectors 
-end                         % from supercell to primitive cell
+    G(i,:)=Dp2s*transpose(G(i,:)); % rescale reciprocal lattice vectors 
+end                                % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G);
 KEIG = coordTransform(KEIG,G);
