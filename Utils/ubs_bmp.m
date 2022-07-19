@@ -1,7 +1,7 @@
 % Prepare a binary file to plot the unfolded band structure as a bitmap figure
 %
 % Execution:
-%    octave ubs_bmp_VASP.m
+%    octave ubs_bmp.m
 %
 % Generated file:
 %    case.f2b.bin or WAVECAR_spin1.f2b.bin ('WIEN2k' or 'VASP')
@@ -9,7 +9,7 @@
 % Band structure plotting:
 %    gnuplot f2b-band-structure.plt
 %
-% (c) Oleg Rubel modified 16 Feb 2022
+% (c) Oleg Rubel modified 13 Jul 2022
 
 % BEGIN internal functions 
 % -------------------------------------------------------------------------
@@ -125,23 +125,25 @@ endfunction
 code = 'WIEN2k'; % 'WIEN2k' or 'VASP'
 KPATH = [0 0 0; ...
          1/2 0 0;...
-         1/2 1/2 0;...
+         1/2 0 1/2;...
          0 0 0]; % k-point path
-FOLDS = [2 2 2]; % multiplicity in the corresponding directions used when constructing the super-cell
+Dp2s = [1 0 -1
+        0 2 0
+        1 0 1]; % transformation matrix used to transform a primitive cell to a supercell
 KLABEL = {'G'; 'X'; 'S'; 'G'};
 finpt = 'case.f2b'; % input file name
-Ef = 0.6011241131; % Fermi energy (Ry or eV) ('WIEN2k' or 'VASP')
+Ef = 0.6558612121; % Fermi energy (Ry or eV) ('WIEN2k' or 'VASP')
 ERANGE = [Ef-2/13.6 Ef+0.5/13.6]; % energy range for plot (Ry or eV) ('WIEN2k' or 'VASP')
 pwr = 1/1; % power for result plotting
          % 1 - linear scale, 1/2 - sqrt, etc.
          % 0 - folded bands (needs wth = 0)
 nK = 100; % pixels along k
 nE =  100; % pixels along Energy axis
-sK = 0.04; % smearing factor in k-space
+sK = 0.006; % smearing factor in k-space
 sE = 0.04; % smearing factor in energy
-G = [ 0.421178  0.002369  0.000000;
-0.000000  0.421171  0.000000;
-0.000000  0.000000  0.421334];    % Reciprocal latt. vect. from OUTCAR or case.outputkgen
+G = [ 0.094547  0.000000  0.000000
+0.000000  0.067052  0.000000
+0.000000  0.000000  0.095037];    % Reciprocal latt. vect. from OUTCAR or case.outputkgen
 roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 
 %% INITIALIZATION
@@ -157,16 +159,16 @@ if code=='WIEN2k'
     EIG = EIG*ry2ev;
     Ef = Ef*ry2ev;
     ERANGE = ERANGE*ry2ev;
+    G = transpose(G); % transpose G matrix (need for Wien2k)
 endif
 
 %% MAIN
 L = [];
 ENE = [];
 WGHT = [];
-%G = G'; % transpose G matrix (need for Wien2k)
 for i=1 : 3
-    G(i,:)=G(i,:)*FOLDS(i); % rescale reciprocal lattice vectors 
-end                         % from supercell to primitive cell
+    G(i,:)=Dp2s*transpose(G(i,:)); % rescale reciprocal lattice vectors 
+end                                % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G);
 KEIG = coordTransform(KEIG,G);

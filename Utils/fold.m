@@ -5,24 +5,44 @@ function fold
 % for WIEN2k. The wavefunctions generated with VASP can be unfolded back 
 % to a desired k-path set below.
 %
-% (c) Oleg Rubel, modified Dec 20, 2019
+% (c) Oleg Rubel, modified Jul 13, 2022
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 clear all;
 
 %% User input
 
-kpath = [0 0 0; ...
-         1/2 1/2 1/2;...
+kpath = [1/2 0 0; ...
+         0 0 0;...
          1/2 1/2 0]; % desired k-path after unfolding
-npath = [17 10]; % # of points along each segment
-folds = [2 2 2]; % multiplicity used to create a supercell
-
+npath = [10 14]; % # of points along each segment
+Dp2s = [
+    1 -1 0
+    1 1 0
+    0 0 2
+]; % transformation matrix used to transfor a primitive cell to a supercell
+toldk = 1e-6; % tollerance for round off errors in k values
 
 %% Check input
-
 if (size(kpath,1)-1 ~= length(npath))
-    error('dimensions "kpath" and "npath" do not agree')
+    msg = MException('f2b:inpcheck',...
+        'dimensions "kpath" and "npath" do not agree: %d vs %d',...
+        size(kpath,1)-1, length(npath));
+    throw(msg);
+end
+if det(Dp2s) <= 0 % Positive Definite Matrix
+    msg = MException('f2b:inpcheck',...
+        join(['Transformation matrix Dp2s is not a ',...
+        'positive definite matrix: det(Dp2s) = %d']),...
+        det(Dp2s));
+    throw(msg);
+end
+if abs(det(Dp2s) - int16(det(Dp2s))) > toldk % Positive Definite Matrix
+    msg = MException('f2b:inpcheck',...
+        join(['Transformation matrix Dp2s does ',...
+        'not give an integer volume scale: det(Dp2s) = %d']),...
+        det(Dp2s));
+    throw(msg);
 end
 
 
@@ -50,21 +70,16 @@ npt=size(kpr,1); % recalculate number of k-points
 
 ksc = zeros(size(kpr)); % allocate k-list for supercell
 for i=1:npt
-    ksc(i,:) = kpr(i,:).*folds;
+    ksc(i,:) = Dp2s*transpose(kpr(i,:));
 end
 
-% bring k-points coordinates to the range [-0.5, 0.5]
+% bring k-points coordinates to the range [0, 1)
 for i=1:npt
     for j=1:3
-        a = ksc(i,j);
-        if a < 0
-          b = a+1/2;
-          c = floor(b);
-        else
-          b = a-1/2;
-          c = ceil(b);
+        ksc(i,j) = mod( ksc(i,j), 1);
+        if 1-ksc(i,j) < toldk
+            ksc(i,j) = 0;
         end
-        ksc(i,j) = a - c;
     end
 end
 

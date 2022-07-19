@@ -6,14 +6,14 @@
 # make veryclean
 
 # Intel fortran compiler
-FC = ifort
-FLFLAGS = # none
-FCFLAGS = -free #-g -traceback -check all -debug all
+#FC = ifort
+#FLFLAGS = # none
+#FCFLAGS = -free #-g -traceback -check all -debug all
 
 # gfortran compiler
-#FC = gfortran
-#FLFLAGS = # none
-#FCFLAGS = -ffree-form
+FC = gfortran
+FLFLAGS = # none
+FCFLAGS = -ffree-form -g -fbacktrace
 
 
 # ~~~ Do not edit after that line ~~~
@@ -21,13 +21,16 @@ FCFLAGS = -free #-g -traceback -check all -debug all
 PROGRAM = fold2Bloch
 
 # source files and objects
-SRCS = $(patsubst %.F, %.o, $(wildcard *.F)) \
+SRCS = util.o $(patsubst %.F, %.o, $(wildcard *.F)) \
     $(patsubst %.F90, %.o, $(wildcard *.F90))
 
 all: $(PROGRAM)
 
 $(PROGRAM): $(SRCS)
 	$(FC) $(FLFLAGS) $(FLINK) -o $@ $^
+
+util.o: util.F90
+	$(FC) $(FCFLAGS) $(FOPT) -c util.F90
 
 %.o: %.F
 	$(FC) $(FCFLAGS) $(FOPT) -c $<

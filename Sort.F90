@@ -1,69 +1,117 @@
 !!!#################################################################################
 !!! Sort
-!!!     Sorts energy coefficients into appropriate groups according to relative
-!!!     location to Gamma point. Then calculates the weight of each group.
-!!!Input:       FoldX, FoldY, FoldZ, Vectors, Coef, NV, Orb
-!!!Output:      Weights(array)
+!!!     Sorts energy coefficients (complex number form) into appropriate groups 
+!!!	according to relative location to Gamma point. Then calculates the weight 
+!!!	of each group.
 !!!#################################################################################
-SUBROUTINE Sort(FX, FY, FZ, Vector, Coef, NV, Orb, Weights)
- implicit none
- integer, intent(in) :: FX, FY, FZ, NV, Orb
- double precision, allocatable :: TGroup(:,:,:,:)
- double precision, intent(in) :: Coef(NV)
- real, Intent(out) ::  Weights(FX*FY*FZ)
- DOUBLE PRECISION, allocatable :: Sums(:)
- integer, intent(in) :: Vector(3,NV)
- integer, allocatable :: counter(:,:,:)
- real :: sumtot
- integer :: remainder_x, remainder_y, remainder_z, j, k, l, p, el
- allocate (TGroup(FX, FY, FZ, NV-Orb))
- allocate (Sums(FX*FY*FZ))
- allocate (counter(FX, FY, FZ))
+SUBROUTINE Sort(ks, kp, vscale, Dp2s, toldk, G, &! <-- args in
+    pwcoeffr, pwcoeffz, &! <-- opt. args in
+    NV, Orb, &! <-- args in
+    w) ! --> args out
+use util, only: inverse3x3
+implicit none
+! external vars
+integer, intent(in) :: &
+    vscale, &! primit. -> superc. volume scale (real space)
+    NV, &! length of PW coefficient vector
+    Orb, &! number of local orbitals in the vector (at the end)
+    G(3,NV) ! matrix of PW lattice vectors
+double precision, intent(in) :: &
+    ks(3), &! k point in supercell
+    kp(3,vscale), &! ks point unfolded to primitive BZ
+    Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
+    toldk ! tolerance for finding unique k points
+double precision, intent(in), optional :: &
+    pwcoeffr(NV) ! plane wave coefficients r/z (real/complex)
+double complex, intent(in), optional :: &
+    pwcoeffz(NV) ! plane wave coefficients r/z (real/complex)
+double precision, intent(out) :: &
+    w(vscale) ! weights after unfolding (0-1)
+! internal vars
+double precision :: &
+    Ds2p(3,3), &! matrix to transf. direct supercell to primitive vectors
+    ksG(3), &! ks + G
+    kptmpi(3) ! intermediate (non unique new k point)
+integer :: &
+    i, j, &! counter
+    countw(vscale) ! count entries into weight bins
+logical :: &
+    matchfound ! used to identify when a k point match found in a group 'kp'
 
- !Initiates the counter and TGroupC elements at 0
-  do j=1,FX
-   do k=1,FY
-     do l=1,FZ
-       counter(j,k,l)=0
-       do p=1,NV-Orb
-         TGroup(FX,FY,FZ,p)=0
-       enddo
-     enddo
-   enddo
- enddo
- 
- !Sorts the energy coeeficients
- do j=1, (NV-Orb)
-    remainder_x=MODULO(Vector(1,j),FX)
-    remainder_y=MODULO(Vector(2,j),FY)
-    remainder_z=MODULO(Vector(3,j),FZ)
-    counter(remainder_x+1, remainder_y+1, remainder_z+1) = &
-        counter(remainder_x+1, remainder_y+1, remainder_z+1)+1
- 	 TGroup(remainder_x+1, remainder_y+1, remainder_z+1, &
- 	    counter(remainder_x+1, remainder_y+1, remainder_z+1))=Coef(j)
- enddo
+! check if one of optional variables is defined
+if (present(pwcoeffr) .and. present(pwcoeffz)) then
+    ! both arguments defined
+    write(*,*) 'ERROR in subroutine Sort: both pwcoeffr and pwcoeffz ',&
+        'arguments are defined.'
+    ERROR STOP 1
+else if ( .not.(present(pwcoeffr)) .and. .not.(present(pwcoeffz))) then
+    ! none of two arguments defined
+    write(*,*) 'ERROR in subroutine Sort: none of pwcoeffr and pwcoeffz ',&
+        'arguments are defined.'
+    ERROR STOP 1
+endif
 
- !Sums the squares  of all coefficients per group
- el=1
- do j=1, FX
-        do k=1, FY
-                do l=1, FZ
-			if (counter(j, k, l).gt.0) then
-			   do p=1, counter(j, k, l)
-			     TGroup(j, k, l,p)=TGroup(j, k, l,p)*(TGroup(j, k, l,p))
-			   enddo
-			   Sums(el)=SUM(TGroup(j, k, l,1:counter(j, k, l)))
-			   el=el+1
-			else 
-			   Sums(el)=0.0
-			   el=el+1
-		        endif
-                enddo
+! construct Ds2p matrix
+call inverse3x3(Dp2s, Ds2p)
+
+! initialize weights and its counter
+w = DBLE(0)
+countw = 0
+
+! sorts the PW coefficients into bins of weights
+do i=1, (NV-Orb)
+    ksG = ks + (/G(1,i), G(2,i), G(3,i)/)
+    kptmpi = MATMUL(Ds2p, ksG) ! convert supercell -> primitive basis
+    ! bring k points into the range [0,1)
+    do j=1,3
+        kptmpi(j) = MODULO( kptmpi(j), DBLE(1))
+        if (1-kptmpi(j) .lt. toldk) then ! 0.99999 -> 1 -> 0
+            kptmpi(j) = DBLE(0)
+        endif
+    enddo ! j
+    ! compare the kptmpi point with the list 'kp' and find which group 
+    ! it belongs
+    matchfound = .false.
+    do j=1, vscale
+        if ( ALL(ABS(kptmpi- kp(:,j)) < toldk) ) then
+            ! point matched to one on the 'kp' list
+            matchfound = .true.
+            ! store absolute value squared of the PW coefficient in
+            ! appropriate bin 'w'
+            if (present(pwcoeffr)) then
+                ! PW coeff. are real
+                w(j) = w(j) + pwcoeffr(i)*pwcoeffr(i)
+            else if (present(pwcoeffz)) then
+                ! PW coeff. are complex
+                w(j) = w(j) + DBLE(pwcoeffz(i)*CONJG(pwcoeffz(i)))
+            endif
+            countw(j) = countw(j) + 1 ! update counter
+            exit ! loop
+        endif
+    enddo ! j (kp)
+    if (.not.matchfound) then
+        write(*,*) 'ERROR in subroutine Sort: unable to match k point (', &
+            kptmpi, ') to a point in the group kp listed below'
+        do j=1, vscale
+            write(*,*) 'kp(', j, ') = ', kp(:,j)
         enddo
- enddo
- sumtot=SUM(Sums(:))
- do j=1, (FX*FY*FZ)
-	Weights(j)=Sums(j)/sumtot
- enddo
- deallocate (TGroup, Sums)
+        ERROR STOP 1
+    endif
+enddo ! i (PW)
+
+! check if all bins got weights
+do i=1, vscale
+    if (countw(j) .eq. 0) then
+        write(*,*) 'ERROR in subroutine Sort: unable to populate k point (', &
+            kp(:,i), ') from the group kp listed below. This is unlikely.'
+        do j=1, vscale
+            write(*,*) 'kp(', j, ') = ', kp(:,j)
+        enddo
+        ERROR STOP 1
+    endif
+enddo
+
+! normalize sum weights to 1
+w = w/SUM(w)
+
 END SUBROUTINE Sort

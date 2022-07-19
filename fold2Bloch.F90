@@ -3,59 +3,104 @@
 ! 
 !    Unfold the data in case.vector[_1] file and compute Bloch spectral weight
 !
-!    Usage: 
-!       fold2Bloch -h # get help
-!       fold2Bloch -r case.vector[_1] x:y:z # real calculation (inversion symm.)
-!       fold2Bloch -c case.vector[_1] x:y:z # complex calc. (no inv. symm.)
-!       fold2Bloch case.vector[_1] x:y:z # complex calc. implied
+!    Usage:
+!       # get help
+!       fold2Bloch -h
+!
+!       # real calculation (inversion symm.)
+!       fold2Bloch -r case.vector[_1] ...
+!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''"
+!
+!       # complex calc. (no inv. symm.)
+!       fold2Bloch -c case.vector[_1] ...
+!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''"
+!
+!       # complex calc. implied
+!       fold2Bloch case.vector[_1] ...
+!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''"
+!
+!       # spin-orbit coupling without -sp
+!       fold2Bloch -so case.vectorso[_1] case.vectorsodn[_1] ...
+!           case.normsoup[_1] case.normsodn[_1] ...
+!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" 
+!
+!       # spin-orbit coupling with -sp
 !       fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] ...
-!           case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit coupling
+!           case.normsoup[_1] case.normsodn[_1] ...
+!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" 
 !
 !   Compilation:
 !       see https://github.com/rubel75/fold2Bloch-Wien2k/wiki/Installation
 !
-! Copyright 2020 Oleg Rubel, Anton Bokhanchuk, Elias Assmann
+! Copyright 2022 Oleg Rubel, Anton Bokhanchuk, Elias Assmann
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 !                               MAIN
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 PROGRAM fold2Bloch
 use structmod, only: struct, struct_read
+use util, only: det3x3
 
 implicit none
 
+INTERFACE
+    SUBROUTINE Sort(ks, kp, vscale, Dp2s, toldk, G, &! <-- args in
+                    pwcoeffr, pwcoeffz, &! <-- opt. args in
+                    NV, Orb, &! <-- args in
+                    w) ! --> args out
+        integer, intent(in) :: &
+            vscale, &! primit. -> superc. volume scale (real space)
+            NV, &! length of PW coefficient vector
+            Orb, &! number of local orbitals in the vector (at the end)
+            G(3,NV) ! matrix of PW lattice vectors
+        double precision, intent(in) :: &
+            ks(3), &! k point in supercell
+            kp(3,vscale), &! ks point unfolded to primitive BZ
+            Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
+            toldk ! tolerance for finding unique k points
+        double precision, intent(in), optional :: &
+            pwcoeffr(NV) ! plane wave coefficients r/z (real/complex)
+        double complex, intent(in), optional :: &
+            pwcoeffz(NV) ! plane wave coefficients r/z (real/complex)
+        double precision, intent(out) :: &
+            w(vscale) ! weights after unfolding (0-1)
+    END SUBROUTINE Sort
+END INTERFACE
 
 INTEGER :: &
     nargs, & !command line input argument counter
-    jatom,i,j,k,jl,jj,l,q, &
+    jatom,i,k,jl,jj,l,q, &
     i2, & ! spinor dn component
-    lmax, lomax, nloat, field, &
+    lmax, lomax, nloat, &
     unitklist, unitstruct, unitvector, unitout, & ! I/O unit numbers
     unitvector2, & ! spinor dn component
     unitnorm, unitnorm2, & ! fine I/O unit for spinor norm components
     line_count, &
     NE, NV, ORB, &
     NE2, NV2, ORB2, & ! spinor dn component
-    FoldX, FoldY, FoldZ, ios, iocplx, nkcount, nkpoints, &
-    ios2 ! spinor dn component
+    ios, iocplx, nkcount, nkpoints, &
+    ios2, &! spinor dn component
+    vscale ! volume scale primitive -> supercell
 INTEGER, ALLOCATABLE :: &
     Vector(:,:), &
     Vector2(:,:) ! spinor dn component
-REAL, ALLOCATABLE :: &
-    Weights(:), &
-    Weights2(:), & ! spinor dn component
-    NKVal(:,:), DKVal(:)
 DOUBLE PRECISION :: &
     KX, KY, KZ, WEIGHT, & ! k-point coordinates and weight
-    KX2, KY2, KZ2, WEIGHT2 ! spinor dn component
+    KX2, KY2, KZ2, WEIGHT2, & ! spinor dn component
+    vscaletmp ! volume scale primitive -> supercell (temp. variable)
 DOUBLE PRECISION, ALLOCATABLE :: &
+    Dp2s(:,:), &! matrix to convert primitive cell to a supercell 
+                ! in direct (real) space
     EIGVAL(:), &
     EIGVAL2(:), & ! spinor dn component
     E(:,:),ELO(:,:,:), &
     E2(:,:),ELO2(:,:,:), & ! spinor dn component
-    Coef(:), & ! PW coeffieicnts
-    sonorm(:), sonorm2(:) ! norm of spin up/dn components for a spinor function
+    Coef(:), & ! PW coefficients
+    sonorm(:), sonorm2(:), &! norm of spin up/dn components for a spinor function
+    Weights(:), &
+    Weights2(:), &! spinor dn component
+    NKVal(:,:) ! k point unfolded from supercell into the primitive cell
 DOUBLE COMPLEX, ALLOCATABLE :: &
-    CoefC(:), & ! PW coeffieicnts (complex)
+    CoefC(:), & ! PW coefficients (complex)
     CoefC2(:) ! spinor dn component
 CHARACTER :: &
     casename*100, vectorname*100, normname*100, &
@@ -87,7 +132,7 @@ nloat = 3
 
 write(*,*) '**************************'
 write(*,*) '**     fold2Bloch       **'
-write(*,*) '** version Jan 12, 2022 **'
+write(*,*) '** version Jul 12, 2022 **'
 write(*,*) '**************************'
 
 !! command line arguments read-in
@@ -95,6 +140,7 @@ write(*,*) '**************************'
 nargs=iargc() ! number of input arguments
 allocate (args(nargs))
 write(*,'(A,I0,A)') 'Detected ', nargs,' input arguments'
+allocate(Dp2s(3,3))
 if (nargs==1) then ! get help
     CALL GETARG(1,args(1))
     if ( (args(1)=='-h') .or. (args(1)=='--help') ) then
@@ -106,8 +152,8 @@ elseif (nargs==2) then ! 2 input arguments (vector file and folds)
     CALL GETARG(1,args(1))
     CALL GETARG(2,args(2))
     read(args(1),*) vectorname ! 1st argument is the vector file name
-    read(args(2),*) folds ! 2nd argument are folds FoldX:FoldY:FoldZ
-    usecomplex = .true. ! complex calcilation implied
+    read(args(2),*) folds ! 2nd argument is Dp2s matrix
+    usecomplex = .true. ! complex calculation implied
     lso = .false. ! no spin-orbit coupling
 elseif (nargs==3) then ! 3 arguments (-r/-c, vector file, folds)
     CALL GETARG(1,args(1))
@@ -121,7 +167,7 @@ elseif (nargs==3) then ! 3 arguments (-r/-c, vector file, folds)
         GOTO 912 ! print error, usage options, and exit
     endif
     read(args(2),*) vectorname ! 2nd argument is the vector file name
-    read(args(3),*) folds ! 3rd argument are folds FoldX:FoldY:FoldZ
+    read(args(3),*) folds ! 3rd argument is Dp2s matrix
     lso = .false. ! no spin-orbit coupling
 elseif (nargs==6) then ! 6 arguments (spin-orbit coupling)
     do i=1,nargs
@@ -129,6 +175,7 @@ elseif (nargs==6) then ! 6 arguments (spin-orbit coupling)
     end do
     if (args(1)=='-so') then
         lso = .true. ! enable SOC
+        write(*,'(A)') 'Spin-orbit calculation mode'
     else ! imposible
         GOTO 912 ! print error, usage options, and exit
     endif
@@ -136,7 +183,7 @@ elseif (nargs==6) then ! 6 arguments (spin-orbit coupling)
     read(args(3),*) vectorname2 ! should be case.vectorsodn[_X]
     read(args(4),*) normname ! should be case.normsoup[_X]
     read(args(5),*) normname2 ! should be case.normsodn[_X]
-    read(args(6),*) folds ! 6th argument are folds FoldX:FoldY:FoldZ
+    read(args(6),*) folds ! 6th argument is Dp2s matrix
     usecomplex = .true. ! complex calcilation implied
 else ! impossible
     write(*,'(A,I0,A)') 'Detected ', nargs,' input arguments'
@@ -144,12 +191,16 @@ else ! impossible
 endif
 
 !! Check if vector file(s) and norm files (SOC only) are present
- 
+
+write(*,'(A)') 'Checking prerequisite files...' 
 inquire(file=vectorname, exist=dir)
 if (.not.(dir)) then
     write(*,'(A)') trim(vectorname)//&
         '  vector file does not exist or invalid file name entered'
     GOTO 912 ! print error, usage options, and exit
+else
+    write(*,'(A)') trim(vectorname)//&
+        '  vector file found'
 endif
 if (lso) then ! SOC only
     inquire(file=vectorname2, exist=dir) ! case.vectorsodn[_X]
@@ -157,52 +208,92 @@ if (lso) then ! SOC only
         write(*,'(A)') trim(vectorname2)//&
             '  vector file does not exist or invalid file name entered'
         GOTO 912 ! print error, usage options, and exit
+    else
+        write(*,'(A)') trim(vectorname2)//&
+            '  vector file found'
     endif
     inquire(file=normname, exist=dir) ! case.normsoup[_X]
     if (.not.(dir)) then
         write(*,'(A)') trim(normname)//&
             '  norm file does not exist or invalid file name entered'
         GOTO 912 ! print error, usage options, and exit
+    else
+        write(*,'(A)') trim(normname)//&
+            '  norm file found'
     endif
     inquire(file=normname2, exist=dir) ! case.normsodn[_X]
     if (.not.(dir)) then
         write(*,'(A)') trim(normname2)//&
             '  norm file does not exist or invalid file name entered'
         GOTO 912 ! print error, usage options, and exit
+    else
+        write(*,'(A)') trim(normname2)//&
+            '  norm file found'
     endif
 endif
 
 !! Check if the number of folds argument is in correct format
 
-i=INDEX(folds, ':')
+i=INDEX(folds, ':') ! return the position of : in the string
 if (i.eq.0) then
+    write(*,*) 'folds = ', TRIM(folds)
     write(*,*) 'Unknown number of folds. See below or type: "fold2Bloch -h" '//&
         'for more information.'
     GOTO 912 ! print error, usage options, and exit
 endif
-read (folds(1:i-1), *, iostat=ios) FoldX
-if ((ios.ne.0).or.(FoldX.le.0)) then
-    write (*,*) 'Number of folds has to be a positive integer greater than 0'
+read (folds(1:i-1), *, iostat=ios) Dp2s(1,1), Dp2s(1,2), Dp2s(1,3)
+if (ios.ne.0) then
+    write (*,*) 'Unable to read the Dp2s(1,:) matrix'
+    write (*,*) 'Relevant input line = ', trim(folds)
+    write (*,*) 'Parsed input section = ', folds(1:i-1)
+    write (*,*) 'while expected 3 numerical values separated by space.'
     GOTO 912 ! print error, usage options, and exit
 endif
 folds=folds(i+1:)
 i=INDEX(folds, ':')
 if (i.eq.0) then
+    write(*,*) 'folds = ', TRIM(folds)
     write(*,*) 'Unknown number of folds. See below or type: "fold2Bloch -h" '//&
         'for more information.'
     GOTO 912 ! print error, usage options, and exit
 endif
-read (folds(1:i-1),*, iostat=ios) FoldY
-if ((ios.ne.0).or.(FoldY.le.0)) then
-    write (*,*) 'Number of folds has to be a positive integer greater than 0'
+read (folds(1:i-1),*, iostat=ios) Dp2s(2,1), Dp2s(2,2), Dp2s(2,3)
+if (ios.ne.0) then
+    write (*,*) 'Unable to read the Dp2s(2,:) matrix'
+    write (*,*) 'Parsed input section = ', folds(1:i-1)
+    write (*,*) 'while expected 3 numerical values separated by space.'
     GOTO 912 ! print error, usage options, and exit
 endif
-read(folds(i+1:),*, iostat=ios) FoldZ
-if ((ios.ne.0).or.(FoldZ.le.0)) then
-    write (*,*) 'Number of folds has to be a positive integer greater than 0'
+read(folds(i+1:),*, iostat=ios) Dp2s(3,1), Dp2s(3,2), Dp2s(3,3)
+if (ios.ne.0) then
+    write (*,*) 'Unable to read the Dp2s(3,:) matrix'
+    write (*,*) 'Parsed input section = ', folds(i+1:)
+    write (*,*) 'while expected 3 numerical values separated by space.'
     GOTO 912 ! print error, usage options, and exit
 endif
-field=FoldX*FoldY*FoldZ
+! Evaluate the volume change prim -> supercell lattice
+call det3x3(Dp2s, &! <-- agrs in
+    vscaletmp)! --> agrs out
+vscale = nint(vscaletmp) ! convert to integer
+! Check volume chenge (not less than 0 and integer)
+if ((vscale.le.0).or.(abs(vscaletmp-vscale).ge.0.0001)) then
+    write (*,*) 'The input matrix Dp2s that transforms the real space'
+    write (*,*) 'primitive lattice vectors to a supercell leads to'
+    write (*,*) 'the following volume change: ', vscale
+    write (*,*) 'Parsed input section = ', folds(i+1:)
+    write (*,*) 'FYI: Dp2s = ', Dp2s
+    write (*,*) 'This means that the Dp2s matrix is not positively defined.'
+    write (*,*) 'Also the volume change should be an integer number.'
+    write (*,*) 'Please review your Dp2s input and rerun fold2Bloch.'
+    GOTO 912 ! print error, usage options, and exit
+else
+    write (*,'(A)') 'Dp2s input matrix is successfully parsed.'
+    write (*,'(A,3(F8.4,X),A)') '       | ', Dp2s(1,:), '|'
+    write (*,'(A,3(F8.4,X),A)') 'Dp2s = | ', Dp2s(2,:), '|'
+    write (*,'(A,3(F8.4,X),A)') '       | ', Dp2s(3,:), '|'
+    write (*,'(A,I0)') 'The primitive to supercell volume scale is: ', &
+        vscale
+endif
 
 !! Get case name
 
@@ -217,7 +308,9 @@ if (.not.(dir)) then ! case.struct is not present
     ERROR STOP 1
 else
     open(unit=unitstruct,file=trim(casename)//'.struct',status='old')
-    call struct_read(unitstruct, stru) ! read case.struct and return stru%nat
+    ! read case.struct and return stru%nat
+    call struct_read(unitstruct,&! <-- args in
+        stru) ! --> args out
     close(unitstruct)
 endif
 
@@ -234,7 +327,7 @@ do while (dir)
     end if
 end do
 
-!! Check if case.klist is avalable to determine number of k points for pregress
+!! Check if case.klist is available to determine number of k points for progress
 !! calculation
 
 inquire(file=trim(casename)//'.klist', exist=dir)
@@ -317,15 +410,20 @@ do while (ios.eq.0)
     endif
     write(*,'(a, f6.3, f6.3, f6.3)') 'Processing K-Point:', KX, KY, KZ
     nkcount=nkcount+1
-    allocate( NKVal(3,FoldX*FoldY*FoldZ) )
-    call NewK(KX, KY, KZ, FoldX, FoldY, FoldZ, NKVal)
+    allocate( NKVal(3,vscale) )
+    ! Convert 1 k point [KX, KY, KZ] in the supercell BZ into 'vscale' number 
+    ! k points in the primitive BZ. The tolerance of 0.00001 is used to find 
+    ! duplicate k points. 'vscale' new k points should be generated as a result 
+    ! of unfolding.
+    call NewK( (/KX, KY, KZ/), vscale, Dp2s, DBLE(0.00001), &! <-- args in
+        NKVal) ! --> args out
     allocate( Vector(3,NV) )
     read(unitvector) (Vector(1,I),Vector(2,I),Vector(3,I),I=1,NV)
     do l=2, NV !Determine the number of local orbitals
         if ( (Vector(1,l).eq.Vector(1,1)) .and. (Vector(2,l).eq.Vector(2,1)) &
                 .and. (Vector(3,l).eq.Vector(3,1)) ) then 
             ORB = NV-l+1
-            exit
+            exit ! loop
         endif
     enddo
     if (lso) then ! SOC
@@ -336,7 +434,7 @@ do while (ios.eq.0)
                     .and. (Vector2(2,l).eq.Vector2(2,1)) &
                     .and. (Vector2(3,l).eq.Vector2(3,1)) ) then 
                 ORB2 = NV-l+1
-                exit
+                exit ! loop
             endif
         enddo
         ! check consistency of vector files
@@ -350,8 +448,8 @@ do while (ios.eq.0)
     if (lso) then ! SOC
         allocate( EIGVAL2(NE), sonorm(NE), sonorm2(NE) )
         ! read norms from files for all eigenvalues
-        CALL read_norms(unitnorm, unitnorm2, NE, &! <-- in
-            sonorm, sonorm2) ! --> out
+        CALL read_norms(unitnorm, unitnorm2, NE, &! <-- args in
+            sonorm, sonorm2) ! ---> args out
     endif
     do jj = 1, NE
         read(unitvector) I, EIGVAL(I)
@@ -370,29 +468,34 @@ do while (ios.eq.0)
                 ERROR STOP 1
             endif
         endif
-        allocate( Weights(FoldX*FoldY*FoldZ) )
+        allocate( Weights(vscale) )
         if (usecomplex) then
             allocate( CoefC(NV) )
             read(unitvector, ioStat=iocplx) CoefC(1:NV)
             if (iocplx.ne.0) then
-                write(*,*)
-                write(*,*) "Ooops,  you either forgot [-r] (no complex "//&
-                    "calculation) switch, or there are not enough coefficients."
-                stop
+                write(*,*) "ERROR: you either forgot [-r] (no complex "//&
+                    "calculation) switch, or there are not enough"//&
+                    "PW coefficients in the vector file."
+                ERROR STOP 1
             endif
-            call SortC(FoldX, FoldY, FoldZ, Vector, CoefC, NV, Orb, Weights)
+            call Sort(ks=(/KX, KY, KZ/), kp=NKVal, vscale=vscale, &!<-- args in
+                Dp2s=Dp2s, toldk=DBLE(1e-6), G=Vector, &!<-- args in
+                pwcoeffz=CoefC, NV=NV, Orb=Orb,&!<-- args in
+                w=Weights) ! ---> args out
             deallocate(CoefC)
             if (lso) then ! SOC
                 allocate( CoefC2(NV) )
                 read(unitvector2, ioStat=iocplx) CoefC2(1:NV)
                 if (iocplx.ne.0) then
                     write(*,*)
-                    write(*,*) "Ooops, there are not enough PW coefficients."
-                    stop
+                    write(*,*) "ERROR: there are not enough PW coefficients."
+                    ERROR STOP 1
                 endif
-                allocate( Weights2(FoldX*FoldY*FoldZ) )
-                call SortC(FoldX, FoldY, FoldZ, Vector2, CoefC2, &
-                    NV, Orb, Weights2)
+                allocate( Weights2(vscale) )
+                call Sort(ks=(/KX, KY, KZ/), kp=NKVal, vscale=vscale, &!<-- args in
+                    Dp2s=Dp2s, toldk=DBLE(1e-6), G=Vector, &!<-- args in
+                    pwcoeffz=CoefC2, NV=NV, Orb=Orb,&!<-- args in
+                    w=Weights2) ! ---> args out
                 deallocate(CoefC2)
                 ! update Bloch spectral weights with the corresponding norms
                 if ( (sonorm(jj) + sonorm2(jj)) < 0.9999 .or. &
@@ -403,8 +506,8 @@ do while (ios.eq.0)
                         'sonorm2(jj)', sonorm2(jj)
                     ERROR STOP 1
                 else ! norm check OK, proceed with weights merge
-                    Weights = Weights*sonorm(jj)
-                    Weights2 = Weights2*sonorm2(jj)
+                    Weights = Weights*REAL(sonorm(jj))
+                    Weights2 = Weights2*REAL(sonorm2(jj))
                     Weights = Weights + Weights2
                 endif
                 deallocate(Weights2)
@@ -414,16 +517,19 @@ do while (ios.eq.0)
             read(unitvector, ioStat=iocplx) Coef(1:NV)
             if (iocplx.ne.0) then
                 write(*,*)
-                write(*,*) "Ooops, there is an error in reading the vector file in real mode [-r]."
-                stop
+                write(*,*) "ERROR in reading the vector file in real mode [-r]."
+                ERROR STOP 1
             endif
-            call Sort(FoldX, FoldY, FoldZ, Vector, Coef, NV, Orb, Weights)
+            call Sort(ks=(/KX, KY, KZ/), kp=NKVal, vscale=vscale, &!<-- args in
+                Dp2s=Dp2s, toldk=DBLE(1e-6), G=Vector, &!<-- args in
+                pwcoeffr=Coef, NV=NV, Orb=Orb,&!<-- args in
+                w=Weights) ! ---> args out
             deallocate(Coef)
         endif
-         !Writes results to a file
-        do q=1, field
-            write(unitout,'(5(f11.6))') (NKval(1,q)/FoldX), (NKVal(2,q)/FoldY),&
-                (NKVal(3,q)/FoldZ), EIGVAL(jj), Weights(q)
+        ! write results to a file
+        do q=1, vscale
+            write(unitout,'(5(f11.6))') NKval(1,q), NKVal(2,q),&
+                NKVal(3,q), EIGVAL(jj), Weights(q)
         enddo
         deallocate(Weights)
     enddo ! loop ofver eigenvalues
@@ -466,8 +572,19 @@ else
         write(*,'(A)') trim(casename)//'.klist matches the vector file.'
     endif
 endif
+write(*,'(A)') 'If you have questions/suggestions/bugs, '//&
+    'please communicate via the WIEN2k mailing list: '//&
+    'http://www.wien2k.at/reg_user/mailing_list'
+write(*,'(A)') 'If you found results useful and worth publishing, '//&
+    'please consider citing these papers:'
+write(*,'(A)') '[1] O. Rubel, A. Bokhanchuk, S. J. Ahmed, and E. Assmann '//&
+    '"Unfolding the band structure of disordered solids: from bound '//&
+    'states to high-mobility Kane fermions", Phys. Rev. B 90, 115202 (2014).'
+write(*,'(A)') '[2] L.-W. Wang, L. Bellaiche, S.-H. Wei, and A. Zunger '//&
+    '"Majority representation of alloy electronic states", Phys. Rev. '//&
+    'Lett. 80, 4725 (1998).'
 
-STOP ! Main part is succesfuly compleated (exit code 0)
+STOP ! Main part is successfully completed (exit code 0)
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 !                           Help
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -475,14 +592,33 @@ STOP ! Main part is succesfuly compleated (exit code 0)
 910 CONTINUE
 write(*,'(A)') 'Usage options:'
 write(*,'(A)') 'fold2Bloch -h # get help'
-write(*,'(A)') 'fold2Bloch -r case.vector[_1] x:y:z '//&
-    '# real calculation (inversion symm.) no SO'
-write(*,'(A)') 'fold2Bloch -c case.vector[_1] x:y:z '//&
-    '# complex calc. (no inv. symm.) no SO'
-write(*,'(A)') 'fold2Bloch case.vector[_1] x:y:z '//&
+write(*,'(A)') 'fold2Bloch -r '//&
+    'case.vector[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'real calculation (inversion symm.) no SO'
+write(*,'(A)') 'fold2Bloch -c '//&
+    'case.vector[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'complex calc. (no inv. symm.) no SO'
+write(*,'(A)') 'fold2Bloch '//&
+    'case.vector[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" '//&
     '# complex calc. implied no SO'
-write(*,'(A)') 'fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] '//&
-    'case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit'
+write(*,'(A)') 'fold2Bloch -so case.vectorso[_1] case.vectorsodn[_1] '//&
+    'case.normsoup[_1] '//&
+    'case.normsodn[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'spin-orbit without -sp'
+    write(*,'(A)') 'fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] '//&
+    'case.normsoup[_1] '//&
+    'case.normsodn[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'spin-orbit with -sp'
+    write(*,'(A)') ''
+write(*,'(A)') 'Notes:'
+write(*,'(A)') '(1) [P] matrix (internally called Dp2s) is used to '//&
+    'transform primitive a_p to supercell a_s lattice '//&
+    'vectors (same as in VESTA):'
+write(*,'(A)') '       a_s(i) = sum_j a_p(j)*P(j,i)      i,j = 1, 2, 3'
+write(*,'(A)') '(2) Use quotations to input the [P] matrix _exactly_ as '//&
+    'shown in this help'
+write(*,'(A)') '(3) Tutorials can be found at '//&
+    'https://github.com/rubel75/fold2Bloch-Wien2k/wiki'
 STOP ! legitimate exit
 
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -495,17 +631,36 @@ ERROR STOP 'error detected when reading vector file!'
 
 ! input options
 912 CONTINUE
-write(*,'(A)') 'ERROR: Unable to recognize comand line options. '//&
+write(*,'(A)') 'ERROR: Unable to recognize command line options. '//&
     'Possible options are:'
 write(*,'(A)') 'fold2Bloch -h # get help'
-write(*,'(A)') 'fold2Bloch -r case.vector[_1] x:y:z '//&
-    '# real calculation (inversion symm.) no SO'
-write(*,'(A)') 'fold2Bloch -c case.vector[_1] x:y:z '//&
-    '# complex calc. (no inv. symm.) no SO'
-write(*,'(A)') 'fold2Bloch case.vector[_1] x:y:z '//&
+write(*,'(A)') 'fold2Bloch -r '//&
+    'case.vector[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'real calculation (inversion symm.) no SO'
+write(*,'(A)') 'fold2Bloch -c '//&
+    'case.vector[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'complex calc. (no inv. symm.) no SO'
+write(*,'(A)') 'fold2Bloch '//&
+    'case.vector[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" '//&
     '# complex calc. implied no SO'
-write(*,'(A)') 'fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] '//&
-    'case.normsoup[_1] case.normsodn[_1] x:y:z # spin-orbit'
+write(*,'(A)') 'fold2Bloch -so case.vectorso[_1] case.vectorsodn[_1] '//&
+    'case.normsoup[_1] '//&
+    'case.normsodn[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'spin-orbit without -sp'
+    write(*,'(A)') 'fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] '//&
+    'case.normsoup[_1] '//&
+    'case.normsodn[_1] "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" # '//&
+    'spin-orbit with -sp'
+    write(*,'(A)') ''
+write(*,'(A)') 'Notes:'
+write(*,'(A)') '(1) [P] matrix (internally called Dp2s) is used to '//&
+    'transform primitive a_p to supercell a_s lattice '//&
+    'vectors (same as in VESTA):'
+write(*,'(A)') '       a_s(i) = sum_j a_p(j)*P(j,i)      i,j = 1, 2, 3'
+write(*,'(A)') '(2) Use quotations to input the [P] matrix _exactly_ as '//&
+    'shown in this help'
+write(*,'(A)') '(3) Tutorials can be found at '//&
+    'https://github.com/rubel75/fold2Bloch-Wien2k/wiki'
 ERROR STOP
 
 END PROGRAM fold2Bloch

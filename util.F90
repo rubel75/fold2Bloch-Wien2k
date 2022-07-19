@@ -13,7 +13,7 @@ MODULE util
   !! Default kinds
   integer, parameter :: DP = selected_real_kind(15,300) ! inherited from W90
   private
-  public :: string, inverse3x3
+  public :: string, det3x3, inverse3x3
 
   interface string
      module procedure int2str, real2str
@@ -29,28 +29,42 @@ contains
     write(real2str,"(E16.9)") r
   end function real2str
 
-  subroutine inverse3x3(a, ainv)
-    !inverse of th 3x3 matrix A
-    implicit none
+   subroutine det3x3(a, &! <-- agrs in
+         deta)! --> agrs out
+      ! determinant of the 3x3 matrix A
+      implicit none
 
-    real(DP), intent(in)  :: a(3,3)
-    real(DP), intent(out) :: ainv(3,3)
-    real(DP) :: det
+      real(DP), intent(in)  :: a(3,3)
+      real(DP), intent(out) :: deta
 
-    det = a(1,1)*a(2,2)*a(3,3) + a(1,2)*a(2,3)*a(3,1) &
+      deta = a(1,1)*a(2,2)*a(3,3) + a(1,2)*a(2,3)*a(3,1) &
+         +a(1,3)*a(2,1)*a(3,2) - a(3,1)*a(2,2)*a(1,3) &
+         -a(1,1)*a(3,2)*a(2,3) - a(2,1)*a(1,2)*a(3,3)
+   end subroutine det3x3
+
+   subroutine inverse3x3(a, &! <-- agrs in
+         ainv)! --> agrs out
+      !inverse of the 3x3 matrix A
+      implicit none
+
+      real(DP), intent(in)  :: a(3,3)
+      real(DP), intent(out) :: ainv(3,3)
+      real(DP) :: det
+
+      det = a(1,1)*a(2,2)*a(3,3) + a(1,2)*a(2,3)*a(3,1) &
          +a(1,3)*a(2,1)*a(3,2) - a(3,1)*a(2,2)*a(1,3) &
          -a(1,1)*a(3,2)*a(2,3) - a(2,1)*a(1,2)*a(3,3)
 
-    ainv(1,1) = (  a(2,2)*a(3,3) - a(2,3)*a(3,2) ) / det
-    ainv(2,1) = (- a(2,1)*a(3,3) + a(2,3)*a(3,1) ) / det
-    ainv(3,1) = (  a(2,1)*a(3,2) - a(2,2)*a(3,1) ) / det
-    ainv(1,2) = (- a(1,2)*a(3,3) + a(1,3)*a(3,2) ) / det
-    ainv(2,2) = (  a(1,1)*a(3,3) - a(1,3)*a(3,1) ) / det
-    ainv(3,2) = (- a(1,1)*a(3,2) + a(1,2)*a(3,1) ) / det
-    ainv(1,3) = (  a(1,2)*a(2,3) - a(1,3)*a(2,2) ) / det
-    ainv(2,3) = (- a(1,1)*a(2,3) + a(1,3)*a(2,1) ) / det
-    ainv(3,3) = (  a(1,1)*a(2,2) - a(1,2)*a(2,1) ) / det
-  end subroutine inverse3x3
+      ainv(1,1) = (  a(2,2)*a(3,3) - a(2,3)*a(3,2) ) / det
+      ainv(2,1) = (- a(2,1)*a(3,3) + a(2,3)*a(3,1) ) / det
+      ainv(3,1) = (  a(2,1)*a(3,2) - a(2,2)*a(3,1) ) / det
+      ainv(1,2) = (- a(1,2)*a(3,3) + a(1,3)*a(3,2) ) / det
+      ainv(2,2) = (  a(1,1)*a(3,3) - a(1,3)*a(3,1) ) / det
+      ainv(3,2) = (- a(1,1)*a(3,2) + a(1,2)*a(3,1) ) / det
+      ainv(1,3) = (  a(1,2)*a(2,3) - a(1,3)*a(2,2) ) / det
+      ainv(2,3) = (- a(1,1)*a(2,3) + a(1,3)*a(2,1) ) / det
+      ainv(3,3) = (  a(1,1)*a(2,2) - a(1,2)*a(2,1) ) / det
+   end subroutine inverse3x3
 end MODULE util
 
 
