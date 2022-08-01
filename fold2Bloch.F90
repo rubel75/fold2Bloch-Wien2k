@@ -9,25 +9,25 @@
 !
 !       # real calculation (inversion symm.)
 !       fold2Bloch -r case.vector[_1] ...
-!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''"
+!           "'P11 P12 P13:P21 P22 P23:P31 P32 P33'"
 !
 !       # complex calc. (no inv. symm.)
 !       fold2Bloch -c case.vector[_1] ...
-!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''"
+!           "'P11 P12 P13:P21 P22 P23:P31 P32 P33'"
 !
 !       # complex calc. implied
 !       fold2Bloch case.vector[_1] ...
-!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''"
+!           "'P11 P12 P13:P21 P22 P23:P31 P32 P33'"
 !
 !       # spin-orbit coupling without -sp
 !       fold2Bloch -so case.vectorso[_1] case.vectorsodn[_1] ...
 !           case.normsoup[_1] case.normsodn[_1] ...
-!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" 
+!           "'P11 P12 P13:P21 P22 P23:P31 P32 P33'" 
 !
 !       # spin-orbit coupling with -sp
 !       fold2Bloch -so case.vectorsoup[_1] case.vectorsodn[_1] ...
 !           case.normsoup[_1] case.normsodn[_1] ...
-!           "''P11 P12 P13:P21 P22 P23:P31 P32 P33''" 
+!           "'P11 P12 P13:P21 P22 P23:P31 P32 P33'" 
 !
 !   Compilation:
 !       see https://github.com/rubel75/fold2Bloch-Wien2k/wiki/Installation
