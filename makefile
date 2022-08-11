@@ -7,13 +7,15 @@
 
 # Intel fortran compiler
 #FC = ifort
-#FLFLAGS = # none
-#FCFLAGS = -free #-g -traceback -check all -debug all
+FLFLAGS = # none
+FCFLAGS = -free # performance
+#FCFLAGS = -free -g -traceback -check all -debug all # debug
 
 # gfortran compiler
-FC = gfortran
-FLFLAGS = # none
-FCFLAGS = -ffree-form -g -fbacktrace
+#FC = gfortran
+#FLFLAGS = # none
+#FCFLAGS = -ffree-form # performance
+#FCFLAGS = -ffree-form -g -fbacktrace # debug
 
 
 # ~~~ Do not edit after that line ~~~

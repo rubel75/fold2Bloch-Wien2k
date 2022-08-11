@@ -126,8 +126,8 @@ endfunction
 %% Init. parameters
 code = 'WIEN2k'; % 'WIEN2k' or 'VASP'
 KPATH = [0 0 0
-         -1/4 1/4 1/4
-         0 0 1/2
+         1/(2*sqrt(2)) 1/(2*sqrt(2)) 1/(2*sqrt(2))
+         0 1/sqrt(2) 1/(2*sqrt(2))
          0 0 0]; % k-point path
 Dp2s = [1 -1 -2
         1 1 -2
@@ -168,9 +168,8 @@ endif
 L = [];
 ENE = [];
 WGHT = [];
-for i=1 : 3
-    G(i,:)=Dp2s*transpose(G(i,:)); % rescale reciprocal lattice vectors 
-end                                % from supercell to primitive cell
+G = Dp2s*G; % rescale reciprocal lattice vectors 
+            % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G)
 KEIG = coordTransform(KEIG,G);

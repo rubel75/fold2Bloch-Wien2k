@@ -105,12 +105,12 @@ DOUBLE COMPLEX, ALLOCATABLE :: &
 CHARACTER :: &
     casename*100, vectorname*100, normname*100, &
     vectorname2*100, normname2*100, & ! spinor dn component
-    folds*20, &
+    folds*400, &
     KNAME*10, & ! k-point name
     KNAME2*10, & ! spinor dn component
     endout*5, &
     bar
-CHARACTER(100), ALLOCATABLE :: &
+CHARACTER(400), ALLOCATABLE :: &
     args(:)
 LOGICAL :: &
     usecomplex, dir, &
