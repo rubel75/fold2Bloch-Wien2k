@@ -11,6 +11,8 @@
 %
 % (c) Oleg Rubel modified 13 Jul 2022
 
+clear all % need to start _not_ with a function declaration
+
 % BEGIN internal functions 
 % -------------------------------------------------------------------------
 function RES = gauss(X,x0,s) % bound. conditions
@@ -123,17 +125,17 @@ endfunction
 
 %% Init. parameters
 code = 'WIEN2k'; % 'WIEN2k' or 'VASP'
-KPATH = [0 0 0; ...
-         1/2 0 0;...
-         1/2 0 1/2;...
+KPATH = [0 0 0
+         -1/4 1/4 1/4
+         0 0 1/2
          0 0 0]; % k-point path
-Dp2s = [1 0 -1
-        0 2 0
-        1 0 1]; % transformation matrix used to transform a primitive cell to a supercell
-KLABEL = {'G'; 'X'; 'S'; 'G'};
+Dp2s = [1 -1 -2
+        1 1 -2
+        0 0 4]; % transformation matrix used to transform a primitive cell to a supercell
+KLABEL = {'G'; 'M'; 'X'; 'G'};
 finpt = 'case.f2b'; % input file name
-Ef = 0.6558612121; % Fermi energy (Ry or eV) ('WIEN2k' or 'VASP')
-ERANGE = [Ef-2/13.6 Ef+0.5/13.6]; % energy range for plot (Ry or eV) ('WIEN2k' or 'VASP')
+Ef = 0.6688926532; % Fermi energy (Ry or eV) ('WIEN2k' or 'VASP')
+ERANGE = [Ef-2/13.6 Ef+1.0/13.6]; % energy range for plot (Ry or eV) ('WIEN2k' or 'VASP')
 pwr = 1/1; % power for result plotting
          % 1 - linear scale, 1/2 - sqrt, etc.
          % 0 - folded bands (needs wth = 0)
@@ -141,9 +143,9 @@ nK = 100; % pixels along k
 nE =  100; % pixels along Energy axis
 sK = 0.006; % smearing factor in k-space
 sE = 0.04; % smearing factor in energy
-G = [ 0.094547  0.000000  0.000000
-0.000000  0.067052  0.000000
-0.000000  0.000000  0.095037];    % Reciprocal latt. vect. from OUTCAR or case.outputkgen
+G = [ 0.096477  0.000000  0.000000
+0.000000  0.096477  0.000000
+0.000000  0.000000  0.020531];    % Reciprocal latt. vect. from OUTCAR or case.outputkgen
 roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 
 %% INITIALIZATION
@@ -170,7 +172,7 @@ for i=1 : 3
     G(i,:)=Dp2s*transpose(G(i,:)); % rescale reciprocal lattice vectors 
 end                                % from supercell to primitive cell
 dl = 0; % cumulative length of the path
-KPATH = coordTransform(KPATH,G);
+KPATH = coordTransform(KPATH,G)
 KEIG = coordTransform(KEIG,G);
 epsk = [roundOffErrK roundOffErrK roundOffErrK]; % k rounding error
 epsk = coordTransform(epsk,G); % transform to Cart. coords
@@ -188,6 +190,7 @@ for ikp = 1 : size(KPATH,1)-1
         cwaitbar(comment,counter,countermax); % progress bar
         if EIG(j) > ERANGE(1) && EIG(j) < ERANGE(2) && W(j) > 0
             dist = Inf; % initialize distance to a path
+            quit = false;
             for ikx = -1:1 % include periodic images of the BZ
                 for iky = -1:1
                     for ikz = -1:1
@@ -199,16 +202,24 @@ for ikp = 1 : size(KPATH,1)-1
                             KPATH(ikp,:) , KPATH(ikp+1,:) , epsk );
                         % select smallest distance
                         dist = min(dist,dist2);
+                        if dist < epsk % k-point is on the path
+                            A = KPATH(ikp,:) - KEIG(j,:) - KPERIOD;
+                            x = dot(A,B)/dk;
+                            if x >= 0  &&  x <= dk+epsk % k-point is within the path range
+                                L = [L; x+dl]; % append k-point coordinate along the path
+                                ENE = [ENE; EIG(j)]; % append energy list
+                                WGHT = [WGHT; W(j)];
+                            end
+                            quit = true;
+                            break; % exit ikz loop
+                        end
+                    end
+                    if quit
+                        break; % exit iky loop
                     end
                 end
-            end
-            if dist < epsk % k-point is on the path
-                A = KPATH(ikp,:) - KEIG(j,:);
-                x = dot(A,B)/dk;
-                if x >= 0  &&  x <= dk+epsk % k-point is within the path range
-                    L = [L; x+dl]; % append k-point coordinate along the path
-                    ENE = [ENE; EIG(j)]; % append energy list
-                    WGHT = [WGHT; W(j)];
+                if quit
+                    break; % exit ikx loop
                 end
             end
         end
