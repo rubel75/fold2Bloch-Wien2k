@@ -13,15 +13,13 @@ clear all;
 %% User input
 
 kpath = [0 0 0
-         0 0 1/2
-         -1/4 1/4 1/4
+         0.5 0 0.25
+         0.5 0.5 0.5
          0 0 0]; % desired k-path after unfolding
 npath = [40 28 28]; % # either the total number of points along each segment
-Dp2s = [
-    1 -1 0
-    1 1 0
-    0 0 2
-]; % matrix used to transform a primitive cell to a supercell
+Dp2s = [1 -1 -2
+        1 1 -2
+        0 0 4]; % matrix used to transform a primitive cell to a supercell
 toldk = 1e-6; % tolerance for round off errors in k values
 
 
@@ -152,5 +150,16 @@ disp('Generated k points are stored in case.klist_band file (for WIEN2k)');
             msg = 'Integer size exceeds the output format.';
             error(msg);
         end
-    end % function out
+        % check accuracy of the transform
+        errorOK = 1e-6;
+        errork = V - nout./dout;
+        if any(abs(errork) > errorOK)
+            disp('WARNING:')
+            disp('  k ='); disp(V);
+            disp('  k1 k2 k3 kdivisor ='); disp(out);
+            disp('  k1/kdivisor k2/kdivisor k3/kdivisor ='); disp(nout./dout);
+            disp('  max abs k error ='); disp(abs(errork));
+            disp('  tolerable error ='); disp(errorOK);
+        end
+    end % function real2rat
 end % function fold
