@@ -58,7 +58,7 @@ do G1=0, vscale
       do G3=0, vscale
          i = i + 1
          ksG = ks + (/G1, G2, G3/)
-         kptmpi = MATMUL(Ds2p, ksG) ! convert supercell -> primitive basis
+         kptmpi = MATMUL(ksG, Ds2p) ! convert supercell -> primitive basis
          if (writeverbose1) then
             write (*,'(A,3(I0,X),A)') 'G = { ', G1, G2, G3, '}'
             write (*,'(A,3(F8.4,X),A)') 'k_s + G = { ', ksG, '}'

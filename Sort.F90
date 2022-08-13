@@ -61,7 +61,7 @@ countw = 0
 ! sorts the PW coefficients into bins of weights
 do i=1, (NV-Orb)
     ksG = ks + (/G(1,i), G(2,i), G(3,i)/)
-    kptmpi = MATMUL(Ds2p, ksG) ! convert supercell -> primitive basis
+    kptmpi = MATMUL(ksG, Ds2p) ! convert supercell -> primitive basis
     ! bring k points into the range [0,1)
     do j=1,3
         kptmpi(j) = MODULO( kptmpi(j), DBLE(1))

@@ -78,7 +78,7 @@ npt=size(kpr,1); % recalculate number of k-points
 
 ksc = zeros(size(kpr)); % allocate k-list for supercell
 for i=1:npt
-    ksc(i,:) = Dp2s*transpose(kpr(i,:));
+    ksc(i,:) = kpr(i,:)*Dp2s;
 end
 
 % bring k-points coordinates to the range [0, 1)
