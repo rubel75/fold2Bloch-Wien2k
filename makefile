@@ -8,8 +8,8 @@
 # Intel fortran compiler
 FC = ifort
 FLFLAGS = # none
-#FCFLAGS = -free # performance
-FCFLAGS = -free -g -traceback -check all -debug all # debug
+FCFLAGS = -free # performance
+#FCFLAGS = -free -g -traceback -check all -debug all # debug
 
 # gfortran compiler
 #FC = gfortran

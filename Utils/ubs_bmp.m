@@ -126,8 +126,8 @@ endfunction
 %% Init. parameters
 code = 'WIEN2k'; % 'WIEN2k' or 'VASP'
 KPATH = [0 0 0
-         1/(2*sqrt(2)) 1/(2*sqrt(2)) 1/(2*sqrt(2))
-         0 1/sqrt(2) 1/(2*sqrt(2))
+         0.5 0 0.25
+         0.5 0.5 0.5
          0 0 0]; % k-point path
 Dp2s = [1 -1 -2
         1 1 -2
