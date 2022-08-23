@@ -10,13 +10,14 @@ function ubs_dots
 code = 'WIEN2k'; % 'WIEN2k' or 'VASP'
 KPATH = [0 0 0; ...
         1/2 0 1/4; ...
-        1/2 1/2 1/2]; % k-point path
+        1/2 1/2 1/2;
+        0 0 0]; % k-point path
 Dp2s = [1 -1 -2
         1 1 -2
         0 0 4]; % transformation matrix used to transform a primitive cell to a supercell
 KLABEL = {'G'; 'M'; 'X'; 'G'};
 finpt = 'WAVECAR_spinor.f2b'; % input file name
-Ef = 0.XX; % Fermi energy (Ry WIEN2k or eV VASP)
+Ef = 5.5595; % Fermi energy (Ry WIEN2k or eV VASP)
 ERANGE = [Ef-2/13.6 Ef+1/13.6]; % energy range for plot (Ry WIEN2k or eV VASP)
 pwr = 1/1; % power for result plotting
          % 1 - linear scale, 1/2 - sqrt, etc.
@@ -49,7 +50,7 @@ roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 % W - list of characters
 
 ry2ev = 13.605698066; % Ry -> eV conversion factor
-if code == 'WIEN2k'
+if strcmp(code,'WIEN2k')
     %% Convert energy units [Ry] -> [eV]
     EIG = EIG*ry2ev;
     Ef = Ef*ry2ev;
@@ -61,9 +62,8 @@ end
 L = [];
 ENE = [];
 WGHT = [];
-for i=1 : 3
-    G(i,:)=Dp2s*G(i,:); % rescale reciprocal lattice vectors 
-end                                % from supercell to primitive cell
+G = Dp2s*G; % rescale reciprocal lattice vectors 
+            % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G);
 KEIG = coordTransform(KEIG,G);

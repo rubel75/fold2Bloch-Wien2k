@@ -157,7 +157,7 @@ roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 % Convert energy units [Ry] -> [eV] for WIEN2k only
 % (for VASP WAVECAR.f2b should be in eV already)
 ry2ev = 13.605698066; % Ry -> eV conversion factor
-if code=='WIEN2k'
+if strcmp(code,'WIEN2k')
     EIG = EIG*ry2ev;
     Ef = Ef*ry2ev;
     ERANGE = ERANGE*ry2ev;
