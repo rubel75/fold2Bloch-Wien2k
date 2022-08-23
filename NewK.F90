@@ -62,7 +62,7 @@ do G1=0, vscale
          if (writeverbose1) then
             write (*,'(A,3(I0,X),A)') 'G = { ', G1, G2, G3, '}'
             write (*,'(A,3(F8.4,X),A)') 'k_s + G = { ', ksG, '}'
-            write (*,'(A)') 'k_p = [Ds2p] * transpose(k_s + G)'
+            write (*,'(A)') 'k_p = (k_s + G) * [Ds2p]'
             write (*,'(A,3(F8.4,X),A)') 'k_p = { ', &
                kptmpi, '} in units of the '//&
                'primitive reciprocal lattice vectors'
