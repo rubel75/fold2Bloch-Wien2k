@@ -7,17 +7,17 @@ function ubs_dots
 % (c) Oleg Rubel, McMaster University
 
 %% Init. parameters
-KPATH = [0 1/2 0; ...
-        0 0 0; ...
-        0 0 1/2]; % k-point path
-Dp2s = [1 0 -1
-        0 2 0
-        1 0 1]; % transformation matrix used to transform a primitive cell to a supercell
-KLABEL = {'Y'; 'G'; 'Z'};
-finpt = '6-atom2D.f2b'; % input file name
-Ef = 0.0460363511; % Fermi energy (Ry)
-ERANGE = [Ef-1 Ef+0.4]; % energy range for plot (Ry)
-ry2ev = 13.605698066; % Ry -> eV conversion factor
+code = 'WIEN2k'; % 'WIEN2k' or 'VASP'
+KPATH = [0 0 0; ...
+        1/2 0 1/4; ...
+        1/2 1/2 1/2]; % k-point path
+Dp2s = [1 -1 -2
+        1 1 -2
+        0 0 4]; % transformation matrix used to transform a primitive cell to a supercell
+KLABEL = {'G'; 'M'; 'X'; 'G'};
+finpt = 'WAVECAR_spinor.f2b'; % input file name
+Ef = 0.XX; % Fermi energy (Ry WIEN2k or eV VASP)
+ERANGE = [Ef-2/13.6 Ef+1/13.6]; % energy range for plot (Ry WIEN2k or eV VASP)
 pwr = 1/1; % power for result plotting
          % 1 - linear scale, 1/2 - sqrt, etc.
          % 0 - folded bands (needs wth = 0)
@@ -34,9 +34,11 @@ clrmp = jet;    % flipud(gray)
                 % flipud(bone)
                 % flipud(jet)
                 % jet
-G = [ 0.333333  0.000000  0.000000;
-      0.000000  0.166667  0.000000;
-      0.000000  0.000000  0.111111]; % Reciprocal latt. vect. from *.outputkgen
+% WIEN2k: Reciprocal latt. vect. from *.outputkgen (column-wise format)
+% VASP: Reciprocal latt. vect. from OUTCAR (row-wise format)
+G = [ 0.182315401  0.000000000  0.000000000
+0.000000000  0.182315401  0.000000000
+0.000000000  0.000000000  0.038797285];
 roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 
 
@@ -46,18 +48,21 @@ roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 % KEIG - k-list for eigenvalues
 % W - list of characters
 
-%% Convert energy units [Ry] -> [eV]
-EIG = EIG*ry2ev;
-Ef = Ef*ry2ev;
-ERANGE = ERANGE*ry2ev;
+ry2ev = 13.605698066; % Ry -> eV conversion factor
+if code == 'WIEN2k'
+    %% Convert energy units [Ry] -> [eV]
+    EIG = EIG*ry2ev;
+    Ef = Ef*ry2ev;
+    ERANGE = ERANGE*ry2ev;
+    G = transpose(G); % change from column -> row format (only WIEN2k)
+end
 
 %% MAIN
 L = [];
 ENE = [];
 WGHT = [];
-G = G'; % transpose G matrix (need for Wien2k)
 for i=1 : 3
-    G(i,:)=Dp2s*transpose(G(i,:)); % rescale reciprocal lattice vectors 
+    G(i,:)=Dp2s*G(i,:); % rescale reciprocal lattice vectors 
 end                                % from supercell to primitive cell
 dl = 0; % cumulative length of the path
 KPATH = coordTransform(KPATH,G);
