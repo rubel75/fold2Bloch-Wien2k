@@ -9,36 +9,44 @@
 
 SUBROUTINE NewK (ks, vscale, Dp2s, toldk, &! <-- vars in
    kp) ! --> vars out
-use util, only: inverse3x3
 implicit none
 ! external vars
 double precision, intent(in) :: &
-ks(3), &! k point in supercell
-Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
-toldk ! tolerance for finding unique k points
+   ks(3), &! k point in supercell
+   toldk ! tolerance for finding unique k points
 integer, intent(in) :: &
-vscale ! primit. -> superc. volume scale (real space)
+   vscale, &! primit. -> superc. volume scale (real space)
+   Dp2s(3,3) ! primit. -> superc. transform matrix (real space)
 double precision, intent(out) :: &
-kp(3,vscale) ! unique set of new (unfolded) k points in the primitive BZ
+   kp(3,vscale) ! unique set of new (unfolded) k points in the primitive BZ
 ! internal vars
 double precision :: &
-kptmp(3,(vscale+1)**3), &! intermediate (non unique new k points) in 
-                          ! the primitive BZ
-Ds2p(3,3), &! matrix to transf. direct supercell to primitive vectors
-ksG(3), &! ks + G
-kptmpi(3) ! intermediate (non unique new k point)
+   kptmp(3,(vscale+1)**3), &! intermediate (non unique new k points) in 
+                           ! the primitive BZ
+   Ds2p(3,3), &! matrix to transf. direct supercell to primitive vectors
+   ksG(3), &! ks + G
+   kptmpi(3) ! intermediate (non unique new k point)
 integer :: &
-i, j, l, nunique, &! counter
-G1, G2, G3 ! G vector, e.g. [0 2 3] in primitive BZ in units of its 
-           ! reciprocal lattice vectors
+   i, j, l, nunique, &! counter
+   G1, G2, G3 ! G vector, e.g. [0 2 3] in primitive BZ in units of its 
+            ! reciprocal lattice vectors
 logical :: &
-unique ! used to identify unique k points
+   unique ! used to identify unique k points
 logical, save :: &
-writeverbose1 = .true., &
-writeverbose2 = .true.
+   writeverbose1 = .true., &
+   writeverbose2 = .true.
 
 ! construct Ds2p matrix
-call inverse3x3(Dp2s, Ds2p)
+! Ds2p = inv(Dp2s)
+Ds2p(1,1) = (  Dp2s(2,2)*Dp2s(3,3) - Dp2s(2,3)*Dp2s(3,2) ) / DBLE(vscale)
+Ds2p(2,1) = (- Dp2s(2,1)*Dp2s(3,3) + Dp2s(2,3)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(3,1) = (  Dp2s(2,1)*Dp2s(3,2) - Dp2s(2,2)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(1,2) = (- Dp2s(1,2)*Dp2s(3,3) + Dp2s(1,3)*Dp2s(3,2) ) / DBLE(vscale)
+Ds2p(2,2) = (  Dp2s(1,1)*Dp2s(3,3) - Dp2s(1,3)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(3,2) = (- Dp2s(1,1)*Dp2s(3,2) + Dp2s(1,2)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(1,3) = (  Dp2s(1,2)*Dp2s(2,3) - Dp2s(1,3)*Dp2s(2,2) ) / DBLE(vscale)
+Ds2p(2,3) = (- Dp2s(1,1)*Dp2s(2,3) + Dp2s(1,3)*Dp2s(2,1) ) / DBLE(vscale)
+Ds2p(3,3) = (  Dp2s(1,1)*Dp2s(2,2) - Dp2s(1,2)*Dp2s(2,1) ) / DBLE(vscale)
 if (writeverbose1) then
 write (*,'(A)') 'Ds2p = inv(Dp2s) matrix is successfully generated. '//&
    'It will be used to convert k points from supercell BZ into '//&

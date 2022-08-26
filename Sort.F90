@@ -8,18 +8,17 @@ SUBROUTINE Sort(ks, kp, vscale, Dp2s, toldk, G, &! <-- args in
     pwcoeffr, pwcoeffz, &! <-- opt. args in
     NV, Orb, &! <-- args in
     w) ! --> args out
-use util, only: inverse3x3
 implicit none
 ! external vars
 integer, intent(in) :: &
     vscale, &! primit. -> superc. volume scale (real space)
+    Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
     NV, &! length of PW coefficient vector
     Orb, &! number of local orbitals in the vector (at the end)
     G(3,NV) ! matrix of PW lattice vectors
 double precision, intent(in) :: &
     ks(3), &! k point in supercell
     kp(3,vscale), &! ks point unfolded to primitive BZ
-    Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
     toldk ! tolerance for finding unique k points
 double precision, intent(in), optional :: &
     pwcoeffr(NV) ! plane wave coefficients r/z (real/complex)
@@ -52,7 +51,16 @@ else if ( .not.(present(pwcoeffr)) .and. .not.(present(pwcoeffz))) then
 endif
 
 ! construct Ds2p matrix
-call inverse3x3(Dp2s, Ds2p)
+! Ds2p = inv(Dp2s)
+Ds2p(1,1) = (  Dp2s(2,2)*Dp2s(3,3) - Dp2s(2,3)*Dp2s(3,2) ) / DBLE(vscale)
+Ds2p(2,1) = (- Dp2s(2,1)*Dp2s(3,3) + Dp2s(2,3)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(3,1) = (  Dp2s(2,1)*Dp2s(3,2) - Dp2s(2,2)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(1,2) = (- Dp2s(1,2)*Dp2s(3,3) + Dp2s(1,3)*Dp2s(3,2) ) / DBLE(vscale)
+Ds2p(2,2) = (  Dp2s(1,1)*Dp2s(3,3) - Dp2s(1,3)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(3,2) = (- Dp2s(1,1)*Dp2s(3,2) + Dp2s(1,2)*Dp2s(3,1) ) / DBLE(vscale)
+Ds2p(1,3) = (  Dp2s(1,2)*Dp2s(2,3) - Dp2s(1,3)*Dp2s(2,2) ) / DBLE(vscale)
+Ds2p(2,3) = (- Dp2s(1,1)*Dp2s(2,3) + Dp2s(1,3)*Dp2s(2,1) ) / DBLE(vscale)
+Ds2p(3,3) = (  Dp2s(1,1)*Dp2s(2,2) - Dp2s(1,2)*Dp2s(2,1) ) / DBLE(vscale)
 
 ! initialize weights and its counter
 w = DBLE(0)

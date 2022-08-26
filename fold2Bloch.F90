@@ -38,7 +38,6 @@
 ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 PROGRAM fold2Bloch
 use structmod, only: struct, struct_read
-use util, only: det3x3
 
 implicit none
 
@@ -49,13 +48,13 @@ INTERFACE
                     w) ! --> args out
         integer, intent(in) :: &
             vscale, &! primit. -> superc. volume scale (real space)
+            Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
             NV, &! length of PW coefficient vector
             Orb, &! number of local orbitals in the vector (at the end)
             G(3,NV) ! matrix of PW lattice vectors
         double precision, intent(in) :: &
             ks(3), &! k point in supercell
             kp(3,vscale), &! ks point unfolded to primitive BZ
-            Dp2s(3,3), &! primit. -> superc. transform matrix (real space)
             toldk ! tolerance for finding unique k points
         double precision, intent(in), optional :: &
             pwcoeffr(NV) ! plane wave coefficients r/z (real/complex)
@@ -79,17 +78,16 @@ INTEGER :: &
     NE2, NV2, ORB2, & ! spinor dn component
     ios, iocplx, nkcount, nkpoints, &
     ios2, &! spinor dn component
-    vscale ! volume scale primitive -> supercell
+    vscale, &! volume scale primitive -> supercell
+    Dp2s(3,3) ! matrix to convert primitive cell to a supercell 
+              ! in direct (real) space
 INTEGER, ALLOCATABLE :: &
     Vector(:,:), &
     Vector2(:,:) ! spinor dn component
 DOUBLE PRECISION :: &
     KX, KY, KZ, WEIGHT, & ! k-point coordinates and weight
-    KX2, KY2, KZ2, WEIGHT2, & ! spinor dn component
-    vscaletmp ! volume scale primitive -> supercell (temp. variable)
+    KX2, KY2, KZ2, WEIGHT2 ! spinor dn component
 DOUBLE PRECISION, ALLOCATABLE :: &
-    Dp2s(:,:), &! matrix to convert primitive cell to a supercell 
-                ! in direct (real) space
     EIGVAL(:), &
     EIGVAL2(:), & ! spinor dn component
     E(:,:),ELO(:,:,:), &
@@ -140,7 +138,6 @@ write(*,*) '**************************'
 nargs=iargc() ! number of input arguments
 allocate (args(nargs))
 write(*,'(A,I0,A)') 'Detected ', nargs,' input arguments'
-allocate(Dp2s(3,3))
 if (nargs==1) then ! get help
     CALL GETARG(1,args(1))
     if ( (args(1)=='-h') .or. (args(1)=='--help') ) then
@@ -272,11 +269,11 @@ if (ios.ne.0) then
     GOTO 912 ! print error, usage options, and exit
 endif
 ! Evaluate the volume change prim -> supercell lattice
-call det3x3(Dp2s, &! <-- agrs in
-    vscaletmp)! --> agrs out
-vscale = nint(vscaletmp) ! convert to integer
+vscale = Dp2s(1,1)*Dp2s(2,2)*Dp2s(3,3) + Dp2s(1,2)*Dp2s(2,3)*Dp2s(3,1) &
+    +Dp2s(1,3)*Dp2s(2,1)*Dp2s(3,2) - Dp2s(3,1)*Dp2s(2,2)*Dp2s(1,3) &
+    -Dp2s(1,1)*Dp2s(3,2)*Dp2s(2,3) - Dp2s(2,1)*Dp2s(1,2)*Dp2s(3,3) ! det(Dp2s)
 ! Check volume chenge (not less than 0 and integer)
-if ((vscale.le.0).or.(abs(vscaletmp-vscale).ge.0.0001)) then
+if (vscale.le.0) then
     write (*,*) 'The input matrix Dp2s that transforms the real space'
     write (*,*) 'primitive lattice vectors to a supercell leads to'
     write (*,*) 'the following volume change: ', vscale
@@ -288,9 +285,9 @@ if ((vscale.le.0).or.(abs(vscaletmp-vscale).ge.0.0001)) then
     GOTO 912 ! print error, usage options, and exit
 else
     write (*,'(A)') 'Dp2s input matrix is successfully parsed.'
-    write (*,'(A,3(F8.4,X),A)') '       | ', Dp2s(1,:), '|'
-    write (*,'(A,3(F8.4,X),A)') 'Dp2s = | ', Dp2s(2,:), '|'
-    write (*,'(A,3(F8.4,X),A)') '       | ', Dp2s(3,:), '|'
+    write (*,'(A,3(I5,X),A)') '       | ', Dp2s(1,:), '|'
+    write (*,'(A,3(I5,X),A)') 'Dp2s = | ', Dp2s(2,:), '|'
+    write (*,'(A,3(I5,X),A)') '       | ', Dp2s(3,:), '|'
     write (*,'(A,I0)') 'The primitive to supercell volume scale is: ', &
         vscale
 endif
