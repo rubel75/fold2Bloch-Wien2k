@@ -550,7 +550,7 @@ endif
 write(*,'(A)') "\/\/\/ UNFOLDING FINISHED SUCCESSFULLY \/\/\/"
 write(*,'(A,I0)') "Number of K points processed: ", nkcount
 write(*,'(A,A)') "Data was written to: ", trim(casename)//".f2b"//trim(endout)
-write(*,'(A)') "Data format: KX, KY, KZ, Eigenvalue(Ry), Bloch weight"
+write(*,'(A)') "Data format: k_1, k_2, k_3, Eigenvalue(Ry), Bloch weight"
 
 !! Compare number of k point found in the vector file with the number of 
 !! point in case.klist file
