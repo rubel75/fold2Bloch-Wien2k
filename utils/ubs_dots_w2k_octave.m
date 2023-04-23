@@ -6,7 +6,7 @@
 % Usage:
 %
 %    first luch Octave GUI
-%    $ octave
+%    $ octave --gui
 %
 %    next within Octave execute the script
 %    >> ubs_dots_w2k_octave
@@ -15,21 +15,23 @@
 % - ported from Matlab (Sept 12, 2017)
 % - updated for compatibility with Octave 4.0.x (Aug 3, 2019)
 % - added periodic images of the BZ (May 26, 2020)
+% - added rotation matrix (Aug, 2022)
 %
 % (c) Oleg Rubel, McMaster University
 
 function ubs_dots_w2k_octave
 
 %% Init. parameters
-KPATH = [1/2 0 0;...
-         0 0 0; ...
-         1/2 1/2 0]; % k-point path
-Dp2s = [1 0 -1
-        0 2 0
-        1 0 1]; % transformation matrix used to transform a primitive cell to a supercell
-KLABEL = {'L'; 'G'; 'X'};
-finpt = 'SiGe.f2b'; % input file name
-Ef = 0.385799; % Fermi energy (Ry)
+KPATH = [0 0 0; ...
+        1/2 0 1/4; ...
+        1/2 1/2 1/2;
+        0 0 0]; % k-point path
+Dp2s = [1 -1 -2
+        1 1 -2
+        0 0 4]; % transformation matrix used to transform a primitive cell to a supercell
+KLABEL = {'G'; 'M'; 'X'; 'G'};
+finpt = 'case.f2b'; % input file name
+Ef = 0.6688926532; % Fermi energy (Ry)
 ERANGE = [Ef-0.2 Ef+0.4]; % energy range for plot (Ry)
 ry2ev = 13.605698066; % Ry -> eV conversion factor
 pwr = 1/1; % power for result plotting
@@ -48,14 +50,16 @@ clrmp = jet;    % flipud(gray)
                 % flipud(bone)
                 % flipud(jet)
                 % jet
-G = [   0.083726 -0.027909 -0.027909;
-   0.000000  0.078938 -0.039469;
-   0.000000  0.000000  0.068362];  % Reciprocal latt. vect. from *.outputkgen
+G = [0.096477  0.000000  0.000000
+0.000000  0.096477  0.000000
+0.000000  0.000000  0.020531];  % Reciprocal latt. vect. from *.outputkgen
 G = G'; % transpose G matrix (Wien2k only!)
+roundOffErrK = 0.000001; % this is the round off error 1/3 = 0.333333 + err
 
 %% INITIALIZATION
-%[KEIG, EIG, W] = readinput(finpt); % read input data from file
+display(['Reading input file: ' finpt ' ...'])
 S = load("-ascii",finpt);
+display(['... done'])
 KEIG = S(:,1:3); % KEIG - k-list for eigenvalues
 EIG = S(:,4); % EIG - energy eigenvalues
 W = S(:,5); % W - list of characters
@@ -68,14 +72,27 @@ WGHT = [];
 G=Dp2s*G; % rescale reciprocal lattice vectors 
           % from supercell to primitive cell
 dl = 0; % cumulative length of the path
+display(['Transforming fractional coordinates in reciprocal space to Cartesian...'])
 KPATH = coordTransform(KPATH,G);
 KEIG = coordTransform(KEIG,G);
+display(['... done'])
+epsk = [roundOffErrK roundOffErrK roundOffErrK]; % k rounding error
+epsk = coordTransform(epsk,G); % transform to Cart. coords
+epsk = sqrt(dot(epsk,epsk)); % get magnitude of the vector
 XTICKS = [0];
+display(['Entering the main loop over segments of k path and energy eigenvalues...'])
 for ikp = 1 : size(KPATH,1)-1
+    display(['k path segment ' num2str(ikp) ' of ' num2str(size(KPATH,1)-1)])
     B = KPATH(ikp,:) - KPATH(ikp+1,:);
     dk = sqrt(dot(B,B));
     XTICKS = [XTICKS; XTICKS(ikp)+dk];
-    for j = 1 : length(EIG)
+    neig = length(EIG);
+    display(['    processing ' num2str(neig) ' k points and eigenvalues...']);
+    progbarlimits = round( neig*linspace(0.1,1,10) );
+    for j = 1 : neig
+        if any(progbarlimits == j)
+            display(['    ' num2str(round(100*j/neig)) '%']);
+        end
         if EIG(j) > ERANGE(1) && EIG(j) < ERANGE(2) && W(j) >= wth
             dist = Inf; % initialize distance to a path
             quit = false;
@@ -90,10 +107,10 @@ for ikp = 1 : size(KPATH,1)-1
                             KPATH(ikp,:) , KPATH(ikp+1,:) , epsk );
                         % select smallest distance
                         dist = min(dist,dist2);
-                        if dist < eps % k-point is on the path
+                        if dist < epsk % k-point is on the path
                             A = KPATH(ikp,:) - KEIG(j,:) - KPERIOD;
                             x = dot(A,B)/dk;
-                            if x >= 0  &&  x <= dk+eps % k-point is within the path range
+                            if x >= 0  &&  x <= dk+epsk % k-point is within the path range
                                 L = [L; x+dl]; % append k-point coordinate along the path
                                 ENE = [ENE; EIG(j)]; % append energy list
                                 WGHT = [WGHT; W(j)];

@@ -3,6 +3,7 @@ function ubs_dots
 %
 % Update history:
 % - added periodic images of the BZ (May 26, 2020)
+% - added rotation matrix (Aug, 2022)
 %
 % (c) Oleg Rubel, McMaster University
 
